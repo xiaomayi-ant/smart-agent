@@ -1,0 +1,20 @@
+{
+  "name": "smart-agent",
+  "private": true,
+  "version": "0.0.0",
+  "author": "sumoer <sumoqing2@gmail.com>",
+  "license": "MIT",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "build": "pnpm turbo run build",
+    "lint": "pnpm turbo run lint",
+    "format": "pnpm turbo run format"
+  },
+  "devDependencies": {
+    "turbo": "latest"
+  },
+  "packageManager": "pnpm@9.15.3"
+}
