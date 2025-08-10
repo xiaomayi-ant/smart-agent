@@ -27,7 +27,7 @@ class VectorSearchManager:
             
             # Initialize embeddings
             self.embeddings = OpenAIEmbeddings(
-                openai_api_key=settings.openai_api_key or settings.deepseek_api_key,
+                openai_api_key=settings.openai_api_key,
                 model="text-embedding-ada-002"
             )
             

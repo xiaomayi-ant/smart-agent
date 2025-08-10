@@ -87,19 +87,10 @@ class GraphState:
 
 
 # Initialize LLM
-# llm = ChatOpenAI(
-#     model="gpt-4o-mini",
-#     openai_api_key=settings.openai_api_key,
-#     base_url=settings.openai_base_url,
-#     temperature=0.1,
-#     max_tokens=2048
-# )
-
-# 新增DeepSeek-V3 LLM初始化
+# OpenAI GPT-4 Turbo LLM初始化（快速模型）
 llm = ChatOpenAI(
-    model="deepseek-chat",  # DeepSeek-V3对应的模型名称
-    openai_api_key=settings.deepseek_api_key or settings.openai_api_key,  # 优先使用DeepSeek API密钥
-    base_url=settings.deepseek_base_url,  # DeepSeek的API基础URL
+    model="gpt-4-turbo",  # GPT-4 Turbo是目前最快的GPT-4变体
+    openai_api_key=settings.openai_api_key,
     temperature=0.1,
     max_tokens=2048
 )

@@ -14,10 +14,6 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = Field(None, env="OPENAI_API_KEY")
     openai_base_url: Optional[str] = Field("https://api.openai.com/v1", env="OPENAI_BASE_URL")
     
-    # DeepSeek Configuration
-    deepseek_api_key: Optional[str] = Field(None, env="DEEPSEEK_API_KEY")
-    deepseek_base_url: Optional[str] = Field("https://api.deepseek.com/v1", env="DEEPSEEK_BASE_URL")
-    
     # Database Configuration
     mysql_host: str = Field("47.251.112.46", env="MYSQL_HOST")
     mysql_port: int = Field(3306, env="MYSQL_PORT")

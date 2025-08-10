@@ -201,7 +201,7 @@ async def stream_response(thread_id: str, request: StreamRequest):
                             "id": main_message_id,
                             "object": "chat.completion.chunk",
                             "created": int(datetime.now().timestamp()),
-                            "model": "deepseek-chat",
+                            "model": "gpt-4-turbo",
                             "choices": [{
                                 "index": 0,
                                 "delta": {},
