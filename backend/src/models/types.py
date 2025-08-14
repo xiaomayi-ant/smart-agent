@@ -1,5 +1,5 @@
 """
-Type definitions for the financial expert backend
+Type definitions for the  backend
 """
 from typing import List, Optional, Union, Dict, Any
 from pydantic import BaseModel, Field
@@ -61,44 +61,6 @@ class IncomeStatement(BaseModel):
 class IncomeStatementsResponse(BaseModel):
     income_statements: List[IncomeStatement]
 
-
-class BalanceSheet(BaseModel):
-    ticker: str
-    calendar_date: str
-    report_period: str
-    period: Period
-    total_assets: float
-    current_assets: float
-    cash_and_equivalents: float
-    inventory: float
-    current_investments: float
-    trade_and_non_trade_receivables: float
-    non_current_assets: float
-    property_plant_and_equipment: float
-    goodwill_and_intangible_assets: float
-    investments: float
-    non_current_investments: float
-    outstanding_shares: float
-    tax_assets: float
-    total_liabilities: float
-    current_liabilities: float
-    current_debt: float
-    trade_and_non_trade_payables: float
-    deferred_revenue: float
-    deposit_liabilities: float
-    non_current_liabilities: float
-    non_current_debt: float
-    tax_liabilities: float
-    shareholders_equity: float
-    retained_earnings: float
-    accumulated_other_comprehensive_income: float
-    total_debt: float
-
-
-class BalanceSheetsResponse(BaseModel):
-    balance_sheets: List[BalanceSheet]
-
-
 class CashFlowStatement(BaseModel):
     ticker: str
     calendar_date: str
@@ -121,19 +83,6 @@ class CashFlowStatement(BaseModel):
 
 class CashFlowStatementsResponse(BaseModel):
     cash_flow_statements: List[CashFlowStatement]
-
-
-class Snapshot(BaseModel):
-    price: float
-    ticker: str
-    day_change: float
-    day_change_percent: float
-    time: str
-    time_nanoseconds: int
-
-
-class SnapshotResponse(BaseModel):
-    snapshot: Snapshot
 
 
 # API Request/Response Models

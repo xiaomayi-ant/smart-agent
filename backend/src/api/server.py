@@ -115,7 +115,7 @@ async def stream_response(thread_id: str, request: StreamRequest):
                 role_or_type = msg.get('role') or msg.get('type')
                 content = msg.get('content', '')
                 
-                # 处理多模态消息 - 校准TypeScript版本
+                # 处理多模态消息 
                 if isinstance(content, list):
                     # 多模态消息处理
                     combined_content = []
@@ -163,7 +163,7 @@ async def stream_response(thread_id: str, request: StreamRequest):
                     # Split token into chunks for smoother streaming
                     chunks = split_token_into_chunks(token)
                     for chunk in chunks:
-                        # 与TypeScript后端一致：使用 partial_ai 事件，发送累计内容
+                        # 使用 partial_ai 事件，发送累计内容
                         payload = [{
                             "id": main_message_id,
                             "type": "ai",

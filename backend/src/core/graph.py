@@ -2,7 +2,7 @@
 LangGraph workflow for the financial expert
 """
 import asyncio
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional, Callable, Annotated, TypedDict
 from datetime import datetime
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import (
@@ -13,11 +13,18 @@ from langchain_core.messages import (
     ToolMessage
 )
 from langgraph.graph import StateGraph, END
+from langgraph.graph.message import add_messages
 from ..core.config import settings
 from ..core.system_prompt import system_message_content
 from ..tools.registry import ALL_TOOLS_LIST
 import uuid
 import re
+
+
+class AppState(TypedDict, total=False):
+    messages: Annotated[List[BaseMessage], add_messages]
+    intent: Optional[str]
+    stream_callback: Optional[Callable]
 
 
 class GraphState:
@@ -87,9 +94,8 @@ class GraphState:
 
 
 # Initialize LLM
-# OpenAI GPT-4 Turbo LLM初始化（快速模型）
 llm = ChatOpenAI(
-    model="gpt-4-turbo",  # GPT-4 Turbo是目前最快的GPT-4变体
+    model="gpt-4-turbo",  
     openai_api_key=settings.openai_api_key,
     temperature=0.1,
     max_tokens=2048
@@ -134,7 +140,7 @@ async def detect_intent(state: dict) -> Dict[str, str]:
     
     if not user_input:
         print("[DetectIntent] 没有用户输入，返回regular")
-        return {"intent": "regular", "messages": messages}
+        return {"intent": "regular", "stream_callback": stream_callback}
     
     intent_prompt = f"""
     你是一个意图分类专家。需要根据用户输入判断是"常规对话"（可以直接回答，无需工具）还是"需要工具支持"（需要数据支持、日期计算或搜索等）。
@@ -146,10 +152,10 @@ async def detect_intent(state: dict) -> Dict[str, str]:
         response = await llm.ainvoke([{"role": "user", "content": intent_prompt}])
         intent = "tool" if response.content.strip().lower() == "tool" else "regular"
         print(f"[DetectIntent] 检测到用户意图: {intent}，输入: {user_input}")
-        return {"intent": intent, "messages": messages, "stream_callback": stream_callback}
+        return {"intent": intent, "stream_callback": stream_callback}
     except Exception as e:
         print(f"[DetectIntent] 意图检测失败: {e}")
-        return {"intent": "regular", "messages": messages, "stream_callback": stream_callback}
+        return {"intent": "regular", "stream_callback": stream_callback}
 
 
 async def collect_base_data(state: dict) -> Dict[str, Any]:
@@ -189,7 +195,7 @@ async def collect_base_data(state: dict) -> Dict[str, Any]:
                 
                 if stream_callback:
                     print(f"[CollectBaseData] 调用stream_callback: {stream_callback}")
-                    # 修改：正确调用stream_callback，传递partial_ai事件类型
+                    
                     stream_callback(content, [], "partial_ai")
                 else:
                     print(f"[CollectBaseData] stream_callback 是 None")
@@ -199,14 +205,14 @@ async def collect_base_data(state: dict) -> Dict[str, Any]:
             result_message = AIMessage(content=full_content)
             log_with_limit("常规对话回复: ", full_content, 300)
             
-            return {"messages": messages + [result_message], "intent": intent, "stream_callback": stream_callback}
+            return {"messages": [result_message], "intent": intent, "stream_callback": stream_callback}
             
         except Exception as e:
             print(f"[CollectBaseData] 流式生成失败: {e}")
             error_message = AIMessage(content=f"抱歉，生成回复时出现错误: {str(e)}")
-            return {"messages": messages + [error_message], "intent": intent, "stream_callback": stream_callback}
+            return {"messages": [error_message], "intent": intent, "stream_callback": stream_callback}
     
-    # 工具调用逻辑 - 校准TypeScript版本
+    # 工具调用逻辑
     now = datetime.now()
     updated_system_message = SystemMessage(
         content=f"{system_message_content.content} 当前时间是 {now.strftime('%Y-%m-%d %H:%M:%S')}，仅当用户需求涉及日期时使用此时间作为基准，并根据用户输入计算具体时间；若用户未提及日期，则不假设或填入任何时间。仅选择一个最相关工具调用，例如 date_calculator_tool（当用户问如‘上周三是什么时间’，可使用 base_date='today' 与 operations=[{{'type':'previous_weekday','value':'wednesday'}}]），或 mysql_simple_query_tool/hybrid_milvus_search_tool，用于查询用户指定的具体操作或信息。"
@@ -228,7 +234,7 @@ async def collect_base_data(state: dict) -> Dict[str, Any]:
                 content=result.content or "",
                 tool_calls=result.tool_calls
             )
-            return {"messages": messages + [updated_result], "intent": intent, "stream_callback": stream_callback}
+            return {"messages": [updated_result], "intent": intent, "stream_callback": stream_callback}
         
         result_message = AIMessage(content=result.content)
         # 添加流式传输：发送AI消息
@@ -238,12 +244,12 @@ async def collect_base_data(state: dict) -> Dict[str, Any]:
             stream_callback(content, [], "partial_ai")
         
         log_with_limit("工具对话回复: ", result.content, 300)
-        return {"messages": messages + [result_message], "intent": intent, "stream_callback": stream_callback}
+        return {"messages": [result_message], "intent": intent, "stream_callback": stream_callback}
         
     except Exception as e:
         print(f"[CollectBaseData] 工具调用失败: {e}")
         error_message = AIMessage(content=f"抱歉，工具调用时出现错误: {str(e)}")
-        return {"messages": messages + [error_message], "intent": intent, "stream_callback": stream_callback}
+        return {"messages": [error_message], "intent": intent, "stream_callback": stream_callback}
 
 
 def _detect_simple_date_tool_call(messages: List[BaseMessage]) -> Optional[dict]:
@@ -283,7 +289,7 @@ async def execute_tools_in_parallel(state: dict) -> Dict[str, Any]:
     stream_callback = state.get('stream_callback')
     
     if intent != "tool":
-        return {"messages": messages, "intent": intent, "stream_callback": stream_callback}
+        return {"intent": intent, "stream_callback": stream_callback}
     
     # Get the last AI message to extract tool calls
     last_ai_message = None
@@ -304,7 +310,7 @@ async def execute_tools_in_parallel(state: dict) -> Dict[str, Any]:
     
     if not tool_calls:
         print("[ExecuteTools] 没有工具调用，跳过执行")
-        return {"messages": messages, "intent": intent, "stream_callback": stream_callback}
+        return {"intent": intent, "stream_callback": stream_callback}
     
     print(f"[ExecuteTools] 执行 {len(tool_calls)} 个工具调用")
     
@@ -322,7 +328,7 @@ async def execute_tools_in_parallel(state: dict) -> Dict[str, Any]:
         else:
             tool_calls_with_ids.append(tool_call)
     
-    # 并行执行工具 - 校准TypeScript版本
+    # 并行执行工具
     TOOL_TIMEOUT = 30000  # 30秒超时
     
     async def execute_single_tool(tool_call):
@@ -380,12 +386,11 @@ async def execute_tools_in_parallel(state: dict) -> Dict[str, Any]:
     tool_results = await asyncio.gather(*[execute_single_tool(tool_call) for tool_call in tool_calls_with_ids])
     
     if stream_callback:
-        # 修改：正确调用stream_callback，传递partial_ai事件类型
         stream_callback("工具执行完成，正在生成回复...", [], "partial_ai")
         # 发送on_tool_end事件，通知前端工具执行完成
         stream_callback("", [], "on_tool_end")
     
-    return {"messages": messages + tool_results, "intent": intent, "stream_callback": stream_callback}
+    return {"messages": tool_results, "intent": intent, "stream_callback": stream_callback}
 
 
 async def simple_response(state: dict) -> Dict[str, Any]:
@@ -395,12 +400,12 @@ async def simple_response(state: dict) -> Dict[str, Any]:
     stream_callback = state.get('stream_callback')
     
     if intent != "tool":
-        return {"messages": messages, "intent": intent, "stream_callback": stream_callback}
+        return {"intent": intent, "stream_callback": stream_callback}
     
     # Check if we have tool messages
     has_tool_messages = any(isinstance(msg, ToolMessage) for msg in messages)
     if not has_tool_messages:
-        return {"messages": messages, "intent": intent, "stream_callback": stream_callback}
+        return {"intent": intent, "stream_callback": stream_callback}
     
     print("[SimpleResponse] 生成工具执行后的回复")
     
@@ -412,26 +417,26 @@ async def simple_response(state: dict) -> Dict[str, Any]:
                 continue
             
             if stream_callback:
-                # 修改：正确调用stream_callback，传递partial_ai事件类型
+                
                 stream_callback(content, [], "partial_ai")
         
         # Get the full response
         response = await llm.ainvoke(messages)
         result_message = AIMessage(content=response.content)
         
-        return {"messages": messages + [result_message], "intent": intent, "stream_callback": stream_callback}
+        return {"messages": [result_message], "intent": intent, "stream_callback": stream_callback}
         
     except Exception as e:
         print(f"[SimpleResponse] 生成回复失败: {e}")
         error_message = AIMessage(content=f"抱歉，生成回复时出现错误: {str(e)}")
-        return {"messages": messages + [error_message], "intent": intent, "stream_callback": stream_callback}
+        return {"messages": [error_message], "intent": intent, "stream_callback": stream_callback}
 
 
 def create_graph() -> StateGraph:
     """Create the LangGraph workflow"""
     
     # Create the graph with dict state
-    workflow = StateGraph(dict)
+    workflow = StateGraph(AppState)
     
     # Add nodes
     workflow.add_node("detect_intent", detect_intent)

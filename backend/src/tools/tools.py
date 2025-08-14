@@ -7,10 +7,7 @@ from datetime import datetime, timedelta
 from langchain.tools import tool
 from .database import (
     get_company_facts,
-    get_income_statements,
-    get_balance_sheets,
-    get_cash_flow_statements,
-    get_stock_snapshot
+    get_income_statements
 )
 from .vector_search import hybrid_milvus_search
 
@@ -63,73 +60,7 @@ async def get_income_statements_tool(ticker: str, limit: int = 10) -> Dict[str, 
         }
 
 
-@tool
-async def get_balance_sheets_tool(ticker: str, limit: int = 10) -> Dict[str, Any]:
-    """Get balance sheets for a company by ticker symbol"""
-    try:
-        print(f"[Tool] Getting balance sheets for ticker: {ticker}, limit: {limit}")
-        results = await get_balance_sheets(ticker.upper(), limit)
-        return {
-            "success": True,
-            "data": results,
-            "count": len(results),
-            "message": f"Successfully retrieved {len(results)} balance sheets for {ticker.upper()}"
-        }
-    except Exception as e:
-        print(f"[Tool] Error getting balance sheets: {e}")
-        return {
-            "success": False,
-            "data": None,
-            "message": f"Error retrieving balance sheets: {str(e)}"
-        }
 
-
-@tool
-async def get_cash_flow_statements_tool(ticker: str, limit: int = 10) -> Dict[str, Any]:
-    """Get cash flow statements for a company by ticker symbol"""
-    try:
-        print(f"[Tool] Getting cash flow statements for ticker: {ticker}, limit: {limit}")
-        results = await get_cash_flow_statements(ticker.upper(), limit)
-        return {
-            "success": True,
-            "data": results,
-            "count": len(results),
-            "message": f"Successfully retrieved {len(results)} cash flow statements for {ticker.upper()}"
-        }
-    except Exception as e:
-        print(f"[Tool] Error getting cash flow statements: {e}")
-        return {
-            "success": False,
-            "data": None,
-            "message": f"Error retrieving cash flow statements: {str(e)}"
-        }
-
-
-@tool
-async def get_stock_snapshot_tool(ticker: str) -> Dict[str, Any]:
-    """Get current stock price and market data by ticker symbol"""
-    try:
-        print(f"[Tool] Getting stock snapshot for ticker: {ticker}")
-        result = await get_stock_snapshot(ticker.upper())
-        if result:
-            return {
-                "success": True,
-                "data": result,
-                "message": f"Successfully retrieved stock snapshot for {ticker.upper()}"
-            }
-        else:
-            return {
-                "success": False,
-                "data": None,
-                "message": f"No stock snapshot found for ticker {ticker.upper()}"
-            }
-    except Exception as e:
-        print(f"[Tool] Error getting stock snapshot: {e}")
-        return {
-            "success": False,
-            "data": None,
-            "message": f"Error retrieving stock snapshot: {str(e)}"
-        }
 
 
 @tool
@@ -256,9 +187,6 @@ async def date_calculator_tool(base_date: str, operations: List[Dict[str, Any]])
 ALL_TOOLS_LIST = [
     get_company_facts_tool,
     get_income_statements_tool,
-    get_balance_sheets_tool,
-    get_cash_flow_statements_tool,
-    get_stock_snapshot_tool,
     hybrid_milvus_search_tool,
     date_calculator_tool
 ] 
