@@ -15,14 +15,14 @@ class Settings(BaseSettings):
     openai_base_url: Optional[str] = Field("https://api.openai.com/v1", env="OPENAI_BASE_URL")
     
     # Database Configuration
-    mysql_host: str = Field("47.251.112.46", env="MYSQL_HOST")
+    mysql_host: Optional[str] = Field(None, env="MYSQL_HOST")
     mysql_port: int = Field(3306, env="MYSQL_PORT")
-    mysql_user: str = Field("root", env="MYSQL_USER")
-    mysql_password: str = Field("Zy1$$", env="MYSQL_PASSWORD")
-    mysql_database: str = Field("crawler", env="MYSQL_DATABASE")
+    mysql_user: Optional[str] = Field(None, env="MYSQL_USER")
+    mysql_password: Optional[str] = Field(None, env="MYSQL_PASSWORD")
+    mysql_database: Optional[str] = Field(None, env="MYSQL_DATABASE")
     
     # Milvus Configuration
-    milvus_address: str = Field("47.251.112.46:19530", env="MILVUS_ADDRESS")
+    milvus_address: Optional[str] = Field(None, env="MILVUS_ADDRESS")
     milvus_ssl: bool = Field(False, env="MILVUS_SSL")
     
     # Server Configuration
@@ -44,7 +44,16 @@ settings = Settings()
 
 
 def get_mysql_config() -> dict:
-    """Get MySQL configuration"""
+    """Get MySQL configuration from environment variables; raise if required values missing."""
+    required = {
+        "MYSQL_HOST": settings.mysql_host,
+        "MYSQL_USER": settings.mysql_user,
+        "MYSQL_PASSWORD": settings.mysql_password,
+        "MYSQL_DATABASE": settings.mysql_database,
+    }
+    missing = [name for name, value in required.items() if not value]
+    if missing:
+        raise ValueError(f"Missing required MySQL env vars: {', '.join(missing)}")
     return {
         "host": settings.mysql_host,
         "port": settings.mysql_port,

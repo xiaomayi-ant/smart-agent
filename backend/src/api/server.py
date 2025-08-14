@@ -19,8 +19,8 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Financial Expert API",
-    description="Financial expert LangGraph Python implementation",
+    title="Universal Assistant API",
+    description="Universal Assistant LangGraph Python implementation",
     version="0.0.0"
 )
 
@@ -289,7 +289,7 @@ async def health_check():
 async def root():
     """Root endpoint"""
     return {
-        "message": "Financial Expert API",
+        "message": "Universal Assistant API",
         "version": "0.0.0",
         "status": "running"
     }
