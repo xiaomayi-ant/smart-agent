@@ -1,6 +1,3 @@
-"""
-FastAPI server for the financial expert backend
-"""
 import asyncio
 import json
 import uuid

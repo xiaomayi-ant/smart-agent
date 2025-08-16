@@ -1,6 +1,4 @@
-"""
-System prompt for the financial expert
-"""
+
 from dataclasses import dataclass
 
 

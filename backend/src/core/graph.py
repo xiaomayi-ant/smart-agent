@@ -1,6 +1,4 @@
-"""
-LangGraph workflow for the financial expert
-"""
+
 import asyncio
 from typing import Dict, Any, List, Optional, Callable, Annotated, TypedDict
 from datetime import datetime
