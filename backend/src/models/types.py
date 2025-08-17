@@ -109,7 +109,7 @@ class StreamEvent(BaseModel):
 
 
 # Graph State Models
-class GraphState(BaseModel):
-    messages: List[Message] = Field(default_factory=list)
-    intent: Optional[str] = None
-    stream_callback: Optional[Any] = None 
+# class GraphState(BaseModel):
+#     messages: List[Message] = Field(default_factory=list)
+#     intent: Optional[str] = None
+#     stream_callback: Optional[Any] = None 

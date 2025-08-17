@@ -30,6 +30,16 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
 
+# Warmup intent router on startup (non-blocking if disabled)
+@app.on_event("startup")
+def warmup_intent_router():
+    try:
+        from ..intent.manager import warmup as _intent_warmup  # type: ignore
+        ok = _intent_warmup()
+        print(f"[startup] intent router warmup: {ok}")
+    except Exception as e:
+        print(f"[startup] intent warmup skipped: {e}")
+
 # Thread history storage
 thread_history: Dict[str, List[Message]] = {}
 

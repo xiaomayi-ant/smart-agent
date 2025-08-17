@@ -1,5 +1,5 @@
 """
-Configuration management for the financial expert backend
+Configuration management for the backend
 """
 import os
 from typing import Optional

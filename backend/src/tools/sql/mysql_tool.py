@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Optional
 from langchain.tools import tool
-from ..database import db_manager
+from .mysql_base import db_manager
 from .types import SimpleQuery, AggregatedQuery, JoinQuery, CustomQuery
 from .builders import (
     validate_field_name,

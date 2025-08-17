@@ -1,4 +1,4 @@
-from .sql.mysql_structured import (
+from .sql.mysql_tool import (
     mysql_simple_query_tool,
     mysql_aggregated_query_tool,
     mysql_join_query_tool,

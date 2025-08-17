@@ -22,6 +22,10 @@ class AppState(TypedDict, total=False):
     messages: Annotated[List[BaseMessage], add_messages]
     intent: Optional[str]
     stream_callback: Optional[Callable]
+    intent_slots: Dict[str, Any] 
+    intent_analysis: Dict[str, Any]
+    intent_composed: Optional[str]
+    suggested_tool: Optional[str]
 
 
 class GraphState:
@@ -120,6 +124,40 @@ def get_last_user_message(messages: List[BaseMessage]) -> Optional[str]:
     return None
 
 
+async def intent_slot_detect(state: dict) -> Dict[str, Any]:
+    """Use internal intent module to extract slots/signals and enrich the state. Safe no-op on failure."""
+    try:
+        messages = state.get('messages', [])
+        user_text = get_last_user_message(messages) or ""
+        if not user_text:
+            return {}
+        try:
+            from ..intent.manager import get_router  # type: ignore
+        except Exception as e:
+            print(f"[intent_slot_detect] import failed: {e}")
+            return {}
+        try:
+            router = get_router()
+            if not router:
+                return {}
+            res = router.process(user_text) or {}
+            slots = res.get("slots") or {}
+            analysis = res.get("analysis") or {}
+            composed = res.get("composed") or ""
+            print(f"[intent_slot_detect] slots={slots} composed={composed[:60]}...")
+            return {
+                "intent_slots": slots,
+                "intent_analysis": analysis,
+                "intent_composed": composed,
+            }
+        except Exception as e:
+            print(f"[intent_slot_detect] process failed: {e}")
+            return {}
+    except Exception as e:
+        print(f"[intent_slot_detect] unexpected error: {e}")
+        return {}
+
+
 async def detect_intent(state: dict) -> Dict[str, str]:
     """Detect user intent (regular conversation or tool usage)"""
     print("[DetectIntent] 开始检测意图")
@@ -134,6 +172,18 @@ async def detect_intent(state: dict) -> Dict[str, str]:
     
     user_input = get_last_user_message(messages)
     print(f"[DetectIntent] 获取到的用户输入: {user_input}")
+
+    # 规则优先：根据 intent_slot_detect 的 signals 判断是否需要工具
+    try:
+        signals = (state.get('intent_analysis') or {}).get('signals') or {}
+        has_datetime = bool(signals.get('has_datetime'))
+        has_location = bool(signals.get('has_location'))
+        has_from_to = bool(signals.get('has_from_to'))
+        if has_datetime or has_location or has_from_to:
+            print("[DetectIntent] rule-based: need tools")
+            return {"intent": "tool", "stream_callback": stream_callback}
+    except Exception:
+        pass
     
     if not user_input:
         print("[DetectIntent] 没有用户输入，返回regular")
@@ -168,7 +218,11 @@ async def collect_base_data(state: dict) -> Dict[str, Any]:
     if intent == "regular":
         now = datetime.now()
         updated_system_message = SystemMessage(
-            content=f"{system_message_content.content} 以当前时间 {now} 作为分析起点。"
+            content=(
+                f"{system_message_content.content} 以当前时间 {now} 作为分析起点。\n"
+                f"基于以下用户槽位概要进行回答（不可杜撰）：{(state.get('intent_composed') or '') if state.get('intent_composed') else '无'}\n"
+                f"可参考槽位字段：{state.get('intent_slots') or {}}"
+            )
         )
         
         # Prepare messages for streaming
@@ -212,7 +266,13 @@ async def collect_base_data(state: dict) -> Dict[str, Any]:
     # 工具调用逻辑
     now = datetime.now()
     updated_system_message = SystemMessage(
-        content=f"{system_message_content.content} 当前时间是 {now.strftime('%Y-%m-%d %H:%M:%S')}，仅当用户需求涉及日期时使用此时间作为基准，并根据用户输入计算具体时间；若用户未提及日期，则不假设或填入任何时间。仅选择一个最相关工具调用，例如 date_calculator_tool（当用户问如‘上周三是什么时间’，可使用 base_date='today' 与 operations=[{{'type':'previous_weekday','value':'wednesday'}}]），或 mysql_simple_query_tool/hybrid_milvus_search_tool，用于查询用户指定的具体操作或信息。"
+        content=(
+            f"{system_message_content.content} 当前时间是 {now.strftime('%Y-%m-%d %H:%M:%S')}。\n"
+            f"用户槽位概要：{(state.get('intent_composed') or '') if state.get('intent_composed') else '无'}\n"
+            f"槽位字段：{state.get('intent_slots') or {}}\n"
+            f"请仅选择一个最相关的工具调用（如日期计算/数据库查询/向量搜索），并严格构造该工具的参数；如无需工具则直接回答。\n"
+            f"若用户未提及日期，则不假设或填入任何日期。"
+        )
     )
     
     try:
@@ -436,19 +496,21 @@ def create_graph() -> StateGraph:
     workflow = StateGraph(AppState)
     
     # Add nodes
+    workflow.add_node("intent_slot_detect", intent_slot_detect)
     workflow.add_node("detect_intent", detect_intent)
     workflow.add_node("collect_base_data", collect_base_data)
     workflow.add_node("execute_tools", execute_tools_in_parallel)
     workflow.add_node("simple_response", simple_response)
     
     # Add edges
+    workflow.add_edge("intent_slot_detect", "detect_intent")
     workflow.add_edge("detect_intent", "collect_base_data")
     workflow.add_edge("collect_base_data", "execute_tools")
     workflow.add_edge("execute_tools", "simple_response")
     workflow.add_edge("simple_response", END)
     
     # Set entry point
-    workflow.set_entry_point("detect_intent")
+    workflow.set_entry_point("intent_slot_detect")
     
     return workflow
 

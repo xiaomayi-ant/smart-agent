@@ -1,0 +1,10 @@
+story_clues:
+  slots: ["topic", "character"]  # 任一非空即可触发 story（当不含其他强触发时）
+  keywords: ["冒险","探险","之旅","宇航员","公主","骑士","宝藏","太空","宇宙"]  # 可选，命中其一也可触发
+  enabled: true
+
+# 也可以预留其他领域的线索（仅作示例，默认不启用）
+weather_clues:
+  slots: []
+  keywords: []
+  enabled: false
