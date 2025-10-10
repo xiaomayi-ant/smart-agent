@@ -1,0 +1,48 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override hosts to point to external services (from your env)
+      HOST: 0.0.0.0
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+
+  prisma-migrate:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: builder
+    env_file:
+      - ./frontend/.env
+    command: ["sh", "-c", "npx prisma migrate deploy"]
+    depends_on:
+      - backend
+    restart: "no"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    env_file:
+      - ./frontend/.env
+    environment:
+      # Ensure frontend talks to backend container host/port from env (server-side fetching)
+      LANGGRAPH_API_URL: http://backend:3001/api
+    depends_on:
+      - backend
+      - prisma-migrate
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+networks:
+  default:
+    name: smart-agent
+
+

@@ -1,0 +1,9 @@
+node_modules/
+.next/
+.git/
+.DS_Store
+env.txt
+.env
+.env.*
+public/uploads/
+
