@@ -17,10 +17,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      target: builder
+      target: prisma
     env_file:
       - ./frontend/.env
-    command: ["sh", "-c", "npx prisma migrate deploy"]
+    command: ["npx", "prisma", "migrate", "deploy"]
     depends_on:
       - backend
     restart: "no"
