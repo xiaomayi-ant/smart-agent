@@ -1,0 +1,59 @@
+# FastAPI and ASGI server
+fastapi>=0.115.2,<1.0
+starlette>=0.40.0,<1.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.18
+
+# LangChain and AI
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-openai>=0.0.5
+langchain-community>=0.0.10
+langgraph>=0.0.20
+
+# Database
+mysql-connector-python>=8.2.0
+pymilvus>=2.3.4
+asyncpg>=0.29.0
+neo4j>=5.20.0
+# graphiti_core runtime (installable name may vary depending on distribution)
+# If unavailable on PyPI, install from your internal source before running.
+# graphiti-core
+
+# PDF and Document Processing
+pypdf>=3.0.0
+transformers>=4.21.0
+torch>=1.12.0
+langchain-text-splitters>=0.0.1
+
+# Utilities
+python-dotenv>=1.0.1
+pydantic>=2.8.2
+pydantic-settings>=2.2.1
+python-dateutil>=2.8.2
+tenacity>=9.0.0
+
+# HTTP and API
+httpx>=0.25.2
+aiofiles>=23.2.1
+
+# Development
+yapf==0.40.2
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+black>=23.11.0
+isort>=5.12.0 
+openai>=1.30.0
+hanlp>=2.1.0
+pyahocorasick>=2.0.0
+openai-whisper>=20231117
+PyJWT>=2.8.0
+
+# Checkpoint (Postgres)
+langgraph-checkpoint-postgres=2.1.1
+# Prefer binary wheels to avoid system libpq/toolchain requirements
+psycopg-binary>=3.2.10
+psycopg-pool>=3.2.6
+
+#JWT
+PyJWT>=2.8.0

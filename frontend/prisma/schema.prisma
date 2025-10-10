@@ -1,0 +1,167 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "darwin-arm64"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Document {
+  id         String   @id @db.Text
+  filename   String   @db.Text
+  mime       String   @db.Text
+  size       Int      @db.Integer
+  data       Bytes
+  status     String   @default("ready") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  // Planned additions (added via migration):
+  userId     String?  @map("user_id") @db.Text
+  uri        String?  @db.Text
+
+  @@map("documents")
+  @@index([createdAt], map: "idx_documents_created")
+  @@index([userId, createdAt], map: "idx_documents_user_created")
+  @@index([status], map: "idx_documents_status")
+}
+
+model Conversation {
+  id        String    @id
+  title     String    @default("新聊天")
+  threadId  String?
+  archived  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime
+  Message   Message[]
+  userId    String?   @db.Text
+
+  @@index([updatedAt(sort: Desc)])
+  @@index([userId, updatedAt], map: "idx_conversations_user_updated")
+}
+
+model Message {
+  id             String       @id
+  conversationId String
+  role           Role
+  content        Json
+  createdAt      DateTime     @default(now())
+  Conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String?      @db.Text
+
+  @@index([conversationId, createdAt])
+  @@index([userId, createdAt], map: "idx_messages_user_created")
+}
+
+model thread_messages {
+  id         BigInt   @id @default(autoincrement())
+  thread_id  String
+  role       String
+  content    Json
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  threads    threads  @relation(fields: [thread_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user_id    String?
+
+  @@index([thread_id, created_at], map: "idx_thread_messages_thread_created")
+  @@index([thread_id], map: "idx_thread_messages_thread_id")
+  @@index([user_id, thread_id, created_at], map: "idx_thread_messages_user")
+}
+
+model threads {
+  id              String            @id
+  status          String            @default("active")
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime          @default(now()) @db.Timestamptz(6)
+  thread_messages thread_messages[]
+  user_id         String?
+
+  @@index([user_id, updated_at], map: "idx_threads_user_updated")
+}
+
+enum Role {
+  USER
+  ASSISTANT
+}
+
+// === Audio & Speech Tables ===
+
+model AudioInput {
+  id          String         @id @default(uuid())
+  filename    String
+  mime        String
+  durationMs  Int?
+  sizeBytes   BigInt
+  sha256      String         @unique
+  storage     String         // 'db_bytea' | 'url'
+  url         String?
+  blob        Bytes?
+  createdAt   DateTime       @default(now())
+
+  AsrTranscript AsrTranscript[]
+}
+
+model AsrTranscript {
+  id         String     @id @default(uuid())
+  audioId    String
+  audio      AudioInput @relation(fields: [audioId], references: [id], onDelete: Cascade)
+  model      String
+  lang       String?
+  text       String
+  wordsJson  Json?
+  latencyMs  Int?
+  createdAt  DateTime   @default(now())
+
+  @@index([audioId])
+}
+
+model TtsCache {
+  id         String   @id @default(uuid())
+  textHash   String   @unique
+  text       String
+  voice      String
+  speed      Decimal  @default(1.0)
+  model      String
+  storage    String   // 'db_bytea' | 'url'
+  url        String?
+  blob       Bytes?
+  mime       String   @default("audio/mpeg")
+  sizeBytes  BigInt?
+  createdAt  DateTime @default(now())
+}
+
+// === Files & Attachments ===
+
+model File {
+  id          String   @id @default(uuid())
+  user_id     String
+  kind        String
+  bucket      String
+  object_key  String
+  etag        String?
+  sha256      String?
+  size_bytes  BigInt
+  mime        String
+  status      String   @default("ready")
+  meta        Json?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("files")
+  @@unique([user_id, sha256])
+  @@index([user_id, created_at])
+  @@index([kind, created_at])
+}
+
+model MessageAttachment {
+  id         String   @id @default(uuid())
+  messageId  String
+  fileId     String
+  partIndex  Int
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("message_attachments")
+  @@index([messageId, partIndex])
+  @@index([fileId])
+}

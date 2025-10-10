@@ -1,0 +1,563 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 10% 3.9%;
+
+    --radius: 0.5rem;
+    /* 输入框基准最大宽度（保持原样） */
+    --chat-max-w: clamp(40rem, 90vw, 52.8rem);
+    /* 会话区最大宽度（仅扩展消息显示区域） */
+    --message-max-w: clamp(40rem, 92vw, 70rem);
+    /* assistant-ui 线程轨道宽度上限（影响 .max-w-aui-thread） */
+    --aui-thread-max-width: calc((var(--chat-max-w) + 2 * 3.5rem) * 6/7);
+    /* 侧栏宽度（响应式）：展开/折叠 */
+    --sidebar-w-expanded: clamp(240px, 18vw, 320px);
+    --sidebar-w-collapsed: 72px;
+    /* 当前生效宽度（默认展开） */
+    --sidebar-w: var(--sidebar-w-expanded);
+    /* 顶栏高度默认值，避免首帧位移 */
+    --topbar-h: 56px;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer base {
+  html, body, :root { height: 100%; }
+  body { overflow: hidden; }
+}
+
+/* 右侧主区滚动细节优化 */
+main {
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+/* 统一滚动条样式：更细、更浅灰，聚焦内容 */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(0,0,0,0.22);
+  border-radius: 9999px;
+  min-height: 10px;
+  /* 通过上下透明边框缩短可视长度，接近 ChatGPT 的短拇指效果 */
+  background-clip: padding-box;
+  border-left: 2px solid transparent;
+  border-right: 2px solid transparent;
+  border-top: 56px solid transparent;   /* 更短视觉长度 */
+  border-bottom: 56px solid transparent;/* 更短视觉长度 */
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0,0,0,0.3);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 自定义短滚动指示器（已回退，使用原生滚动条） */
+
+/* 覆盖层输入区的“遮挡”背景：防止透视看到底部内容 */
+.app-composer-overlay {
+  /* 渐隐遮挡，无阴影 */
+  background: linear-gradient(to top,
+    hsl(var(--background)) 72%,
+    color-mix(in hsl, hsl(var(--background)) 92%, transparent) 100%
+  );
+}
+
+/* （回退）删除统一 Composer 行高与胶囊高度变量 */
+
+/* Assistant UI Composer 精准样式覆盖 */
+@layer components {
+  /* 让线程视口右缘与输入框右缘对齐：去掉库默认的 px-4 的右侧部分 */
+  .aui-thread-viewport {
+    /* 右缘对齐输入框，但维持轨道整体在容器中居中 */
+    padding-right: 0 !important;
+    padding-left: 0 !important; /* 与输入框容器左右内边距保持一致：由外层 px-6/10/14 控制 */
+    align-items: stretch !important; /* 使内容横向拉满可用宽度 */
+  }
+  /* 外层容器：圆角、边框、内边距 */
+  .aui-composer-root {
+    position: relative;
+    border-radius: 32px; /* 更大圆角 */
+    border: 1px solid hsl(240 5.9% 94%); /* 略加强灰度 */
+    background: hsl(var(--background));
+    padding: 4px 12px; /* 再降内边距 */
+    min-height: 36px; /* 再降低高度 */
+    box-shadow: none; /* 去掉轻阴影 */
+    align-items: center;
+    gap: 5px; /* 再缩小间距 */
+    transition: box-shadow .15s ease, border-color .15s ease;
+  }
+  .aui-composer-root:focus-within {
+    border-color: hsl(240 5.9% 94%); /* 略加强灰度，且不发光 */
+    box-shadow: none;
+  }
+
+  /* 文本输入本体：透明背景、右侧为麦克风留空 */
+  .aui-composer-input {
+    border: 0;
+    background: transparent;
+    outline: none;
+    resize: none;
+    padding-right: 6px; /* 最小安全区，避免覆盖右侧按钮 */
+    font-size: 16px;
+    line-height: 20px; /* 更紧凑 */
+    text-align: left;  /* 强制左对齐，避免从右侧开始 */
+    direction: ltr;    /* 强制从左到右输入 */
+  }
+
+  /* 附件/输入布局：默认一行；有附件时改为上下两行 */
+  .aui-composer-primary { display: flex; flex-direction: row; align-items: flex-start; gap: 8px; width: 100%; min-width: 0; }
+  .aui-composer-attachments:empty { display: none; }
+  .aui-composer-attachments {
+    display: none; /* 默认隐藏：无附件不占位 */
+    width: 100%;
+    flex: 0 0 auto;
+    overflow-x: auto;
+    overflow-y: visible; /* 避免胶囊底部被裁切 */
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-bottom: 6px;
+    gap: 12px; /* 统一使用 gap 控制间距 */
+    align-items: center; /* 垂直对齐更稳定 */
+  }
+  .aui-composer-attachments::-webkit-scrollbar { display: none; }
+  /* （回退）移除强制胶囊高度与内部限制，恢复库默认尺寸 */
+  
+
+  /* 有任何子元素（至少 1 个附件卡片）时显示附件轨道（使用 flex，避免行内基线导致高度异常） */
+  .aui-composer-attachments:has(*) { display: flex; }
+  .aui-composer-root:has(.aui-composer-attachments:not(:empty)) .aui-composer-primary {
+    flex-direction: column; /* 附件在上，输入在下 */
+    align-items: stretch;
+  }
+
+  /* 强制命中内部 contenteditable，避免父级 text-center 继承影响 */
+  .aui-composer-input,
+  .aui-composer-input [contenteditable='true'] {
+    text-align: left !important;
+    direction: ltr !important;
+  }
+
+  /* 发送按钮圆角 */
+  .aui-composer-send {
+    border-radius: 9999px;
+    width: 32px; /* 再缩小按钮尺寸 */
+    height: 32px;
+    background: hsl(var(--foreground));
+    color: hsl(var(--background));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity .2s ease, transform .05s ease;
+  }
+  /* 将附件回形针改为加号 */
+  .aui-composer-attach { width: 32px; height: 32px; }
+  .aui-composer-attach svg { display: none; }
+  .aui-composer-attach::before {
+    content: "+";
+    display: inline-block;
+    font-weight: 700; /* 放大加号字重 */
+    font-size: 18px; /* 更紧凑 */
+    line-height: 1;
+  }
+  .aui-composer-send:hover { opacity: .95; }
+  .aui-composer-send:active { transform: scale(0.98); }
+  .aui-composer-send svg { display: none; }
+  .aui-composer-send::before {
+    content: "";
+    width: 16px;
+    height: 16px;
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 19V5'/><path d='M5 12l7-7 7 7'/></svg>") no-repeat 50% 50%;
+    mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 19V5'/><path d='M5 12l7-7 7 7'/></svg>") no-repeat 50% 50%;
+    background-size: 100% 100%;
+  }
+
+  /* 删除伪元素麦克风，改用真实按钮（见 CustomComposer） */
+}
+
+/* iOS 安全区：为 Thread 底部输入区预留空间 */
+.aui-thread-viewport-footer {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@supports (padding: max(0px)) {
+  .aui-thread-viewport-footer {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  }
+}
+
+/* 欢迎页头像风格（与侧栏 Logo 对齐） */
+.aui-thread-welcome-root .aui-avatar-fallback {
+  color: #30D5C8;
+  font-style: italic;
+  font-weight: 900;
+  font-size: 18px;
+}
+
+/* 可选：放大欢迎头像尺寸 */
+.aui-thread-welcome-root .aui-avatar-root {
+  width: 44px;
+  height: 44px;
+}
+
+/* 强制隐藏所有助手消息的头像，释放空间 */
+[data-role="assistant"] [data-testid="avatar"],
+[data-role="assistant"] .aui-avatar-root,
+.aui-assistant-message-root .aui-avatar-root,
+.aui-assistant-message .aui-avatar-root {
+  display: none !important;
+  width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* 移除头像占用的空间，让消息内容左对齐 */
+[data-role="assistant"],
+.aui-assistant-message-root,
+.aui-assistant-message {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+}
+
+/* 扩展助手消息内容的宽度利用率 */
+[data-role="assistant"] .aui-message-content,
+.aui-assistant-message .aui-message-content,
+.aui-assistant-message-root .aui-message-content {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* 确保文本内容也充分利用宽度 */
+[data-role="assistant"] .aui-text,
+.aui-assistant-message .aui-text,
+.aui-assistant-message-root .aui-text {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* 移除可能的右侧边距限制 */
+[data-role="assistant"] .aui-message-root,
+.aui-assistant-message .aui-message-root {
+  margin-right: 0 !important;
+  max-width: 100% !important;
+}
+
+/* 覆盖 markdown/prose 的宽度限制 */
+[data-role="assistant"] .prose,
+.aui-assistant-message .prose,
+.aui-assistant-message-root .prose {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* 覆盖所有可能的 markdown 容器宽度限制 */
+[data-role="assistant"] .markdown,
+[data-role="assistant"] [class*="markdown"],
+[data-role="assistant"] [class*="prose"],
+.aui-assistant-message .markdown,
+.aui-assistant-message [class*="markdown"],
+.aui-assistant-message [class*="prose"] {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* 针对具体的文本元素 */
+[data-role="assistant"] p,
+[data-role="assistant"] div,
+[data-role="assistant"] span,
+.aui-assistant-message p,
+.aui-assistant-message div,
+.aui-assistant-message span {
+  max-width: 100% !important;
+}
+
+/* 更精确的宽度控制：确保AI消息内容使用全部可用宽度 */
+[data-role="assistant"] > *,
+.aui-assistant-message-root > *,
+.aui-assistant-message > * {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* 深度覆盖所有可能的宽度限制 */
+[data-role="assistant"] *,
+.aui-assistant-message *,
+.aui-assistant-message-root * {
+  max-width: 100% !important;
+}
+
+/* 特别针对可能的布局容器 */
+[data-role="assistant"] [class*="container"],
+[data-role="assistant"] [class*="content"],
+[data-role="assistant"] [class*="wrapper"],
+[data-role="assistant"] [class*="inner"],
+.aui-assistant-message [class*="container"],
+.aui-assistant-message [class*="content"],
+.aui-assistant-message [class*="wrapper"],
+.aui-assistant-message [class*="inner"] {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* 强制图片缩略图大小 */
+.custom-image-thumbnail {
+  width: auto !important;
+  height: auto !important;
+  max-width: 400px !important;
+  max-height: 300px !important;
+  min-width: 250px !important;
+  min-height: 150px !important;
+  object-fit: contain !important;
+}
+
+/* 全局强制所有消息中的图片大小（收敛到消息区，避免影响输入框附件） */
+.aui-assistant-message-root .aui-message img,
+.aui-user-message-root .aui-message img,
+[data-role="assistant"] .aui-message img,
+[data-role="user"] .aui-message img,
+.aui-assistant-message-root .aui-attachment img,
+.aui-assistant-message-root .aui-attachment-root img,
+.aui-user-message-root .aui-attachment img,
+.aui-user-message-root .aui-attachment-root img,
+[data-role="assistant"] .aui-attachment img,
+[data-role="assistant"] .aui-attachment-root img,
+[data-role="user"] .aui-attachment img,
+[data-role="user"] .aui-attachment-root img {
+  min-width: 250px !important;
+  min-height: 150px !important;
+  max-width: 400px !important;
+  max-height: 300px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+}
+
+/* 覆盖任何可能的Avatar或缩略图样式 */
+.aui-avatar img,
+.aui-avatar-image,
+[class*="avatar"] img,
+[class*="thumb"] img,
+[class*="thumbnail"] img {
+  min-width: 250px !important;
+  min-height: 150px !important;
+  max-width: 400px !important;
+  max-height: 300px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+}
+
+/* 终极覆盖（收敛到消息显示区，避免影响输入框/弹窗等） */
+div[class*="message"] img,
+div[class*="chat"] img,
+div[class*="thread"] img,
+.aui-assistant-message-root img,
+.aui-user-message-root img,
+[data-role="assistant"] img,
+[data-role="user"] img {
+  min-width: 250px !important;
+  min-height: 150px !important;
+  max-width: 400px !important;
+  max-height: 300px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+}
+
+/* 特别针对我们的ImageViewer组件 */
+img.custom-image-thumbnail,
+img[src*="uploads"],
+img[src*="thumb"] {
+  min-width: 250px !important;
+  min-height: 150px !important;
+  max-width: 400px !important;
+  max-height: 300px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+}
+
+
+/* 仅在图片预览弹窗中放开图片尺寸限制，避免 400x300 的全局规则压缩大图 */
+.aui-image-lightbox img {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+}
+
+/* Composer 附件条最终覆盖：确保缩略图尺寸与文本省略在该区域生效 */
+.aui-composer-attachments * { min-width: 0; }
+.aui-composer-attachments img,
+.aui-composer-attachments .aui-attachment img,
+.aui-composer-attachments [class*="attachment"] img {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  min-height: 30px !important;
+  max-width: 30px !important;
+  max-height: 30px !important;
+  object-fit: cover !important;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.aui-composer-attachments :where(span,div)[class*="name"],
+.aui-composer-attachments :where(span,div):not(:has(*)) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 统一芯片高度与内边距，保持视觉一致 */
+.aui-composer-attachments > * {
+  position: relative; /* 作为关闭按钮的定位上下文 */
+  height: 38px;
+  padding: 4px 22px 4px 8px; /* 右侧预留关闭按钮空间 */
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+/* 关闭按钮固定右上角，不参与文档流占位 */
+.aui-composer-attachments button[aria-label='remove'],
+.aui-composer-attachments [data-role='remove'] {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  margin: 0 !important;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+
+/* Composer 附件条：组合修复（A+B） - 更稳健的定位与对齐 */
+.aui-composer-attachments {
+  display: flex;            /* B: 统一用 flex 控制交叉轴对齐 */
+  align-items: center;      /* 居中对齐，避免行高被最高子项拉高 */
+  gap: 12px;
+  overflow-x: auto;
+  white-space: nowrap;
+  line-height: normal;      /* 恢复正常行高，避免父容器高度被清零影响布局 */
+  margin-left: -6px;        /* 轻微抵消左侧内边距，贴齐整体视觉 */
+  padding-bottom: 2px;      /* 给内容留出 1–2px 安全余量，防止底部裁切 */
+}
+
+.aui-composer-attachments > * {
+  display: flex;            /* 显式使用 flex 布局，避免 inline 行框导致的裁切 */
+  flex: 0 0 auto;           /* 保持横向排列，不被压缩 */
+  line-height: normal;      /* 恢复子项的正常行高 */
+  align-items: center;      /* 垂直居中，消除底部轻微遮挡 */
+}
+
+/* A: 识别带删除语义的按钮，固定在 chip 右上角，不参与文档流 */
+.aui-composer-attachments > *:has(
+  button[aria-label*="remove"],
+  button[aria-label*="删除"],
+  button[aria-label*="移除"],
+  button[aria-label*="close"],
+  button[title*="remove"],
+  button[title*="删除"],
+  button[title*="移除"],
+  button[title*="close"],
+  [data-testid*="remove"],
+  [class*="remove"],
+  [class*="close"]
+) {
+  position: relative;       /* 作为绝对定位参考 */
+  padding-right: 28px;      /* 预留关闭按钮空间 */
+}
+
+.aui-composer-attachments :is(
+  button[aria-label*="remove"],
+  button[aria-label*="删除"],
+  button[aria-label*="移除"],
+  button[aria-label*="close"],
+  button[title*="remove"],
+  button[title*="删除"],
+  button[title*="移除"],
+  button[title*="close"],
+  [data-testid*="remove"],
+  [class*="remove"],
+  [class*="close"]
+) {
+  position: absolute;
+  top: 1px;                /* 再提升 1px，避免“下降”观感 */
+  right: 6px;
+  margin: 0 !important;
+  line-height: 1;
+}
+

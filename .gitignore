@@ -1,0 +1,17 @@
+node_modules/
+.venv/
+.env
+.env.*
+*.log
+.DS_Store
+__pycache__/
+dist/
+build/
+mo/
+modify/
+scripts/
+frontend/public/uploads/**
+.cursor/
+.specstory/
+*.code-workspace
+
