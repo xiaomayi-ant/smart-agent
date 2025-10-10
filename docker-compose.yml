@@ -1,8 +1,6 @@
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ghcr.io/xiaomayi-ant/smart-agent-backend:latest
     env_file:
       - ./backend/.env
     environment:
@@ -14,10 +12,7 @@ services:
     restart: unless-stopped
 
   prisma-migrate:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      target: prisma
+    image: ghcr.io/xiaomayi-ant/smart-agent-prisma:latest
     env_file:
       - ./frontend/.env
     command: ["npx", "prisma", "migrate", "deploy"]
@@ -26,10 +21,7 @@ services:
     restart: "no"
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      target: runner
+    image: ghcr.io/xiaomayi-ant/smart-agent-frontend:latest
     env_file:
       - ./frontend/.env
     environment:
