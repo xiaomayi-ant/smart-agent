@@ -22,7 +22,6 @@ RUN npx prisma generate
 COPY app ./app
 COPY lib ./lib
 COPY components ./components
-COPY public ./public
 
 RUN npm run build
 
