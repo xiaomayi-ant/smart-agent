@@ -35,6 +35,11 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
+# Install OpenSSL and certs for Prisma/DB connectivity at runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl libssl3 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
@@ -46,6 +51,9 @@ COPY --from=builder /app/prisma ./prisma
 FROM node:20-slim AS prisma
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl libssl3 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 COPY package.json ./package.json
 RUN npm install --include=dev
 COPY prisma ./prisma
