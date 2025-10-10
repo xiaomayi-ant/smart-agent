@@ -29,6 +29,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: runner
     env_file:
       - ./frontend/.env
     environment:
