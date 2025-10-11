@@ -2,18 +2,18 @@
 
 import { Mic, Plus, AudioLines, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Composer as UIComposer, useAssistantRuntime } from "@assistant-ui/react";
+import { Composer as UIComposer, useThread, useThreadRuntime } from "@assistant-ui/react";
 import { useComposerRuntime } from "@assistant-ui/react";
 import { useDictation } from "@/app/hooks/useDictation";
 import { useState, useCallback, useEffect, useRef } from "react";
 
 export function CustomComposer() {
   const composer = useComposerRuntime();
-  const runtime = useAssistantRuntime();
+  const threadRuntime = useThreadRuntime();
+  const isRunning = useThread((t) => t.isRunning);
   const { isRecording, isBusy, start, stop } = useDictation();
   const [hint, setHint] = useState<string>("");
   const composingRef = useRef<boolean>(false);
-  const [isRunning, setIsRunning] = useState<boolean>(false);
 
   const [hasSendable, setHasSendable] = useState<boolean>(() => {
     try {
@@ -77,29 +77,21 @@ export function CustomComposer() {
     return () => { stopped = true; };
   }, [composer, recalc]);
 
-  // 订阅 runtime 状态，检测是否正在运行
-  useEffect(() => {
-    if (!runtime) return;
-    const anyRuntime: any = runtime as any;
-    if (typeof anyRuntime.subscribe === "function") {
-      const unsub = anyRuntime.subscribe(() => {
-        try {
-          const state = runtime.getState();
-          setIsRunning((state as any)?.isRunning ?? false);
-        } catch {}
-      });
-      return unsub;
-    }
-  }, [runtime]);
-
   const handleCancel = useCallback(() => {
     try {
-      runtime.cancel();
-      console.log('[Composer] 取消运行');
+      if (threadRuntime && typeof (threadRuntime as any).cancel === 'function') {
+        (threadRuntime as any).cancel();
+        console.log('[Composer] 取消运行');
+      } else if (threadRuntime && typeof (threadRuntime as any).cancelRun === 'function') {
+        (threadRuntime as any).cancelRun();
+        console.log('[Composer] 取消运行 (cancelRun)');
+      } else {
+        console.warn('[Composer] threadRuntime 没有 cancel 方法');
+      }
     } catch (e) {
       console.error('[Composer] 取消失败:', e);
     }
-  }, [runtime]);
+  }, [threadRuntime]);
 
   const handleStart = useCallback(async () => {
     try {
