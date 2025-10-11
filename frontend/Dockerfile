@@ -25,7 +25,8 @@ RUN pnpm install --frozen-lockfile --filter ./frontend...
 # -----------------------------
 FROM deps AS builder
 WORKDIR /app/frontend
-ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1
 
 # Copy source code
 COPY frontend ./
@@ -43,6 +44,7 @@ WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000
+RUN apk add --no-cache openssl
 EXPOSE 3000
 
 # Copy standalone server and static assets
