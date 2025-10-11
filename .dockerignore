@@ -1,0 +1,26 @@
+# Exclude local and VCS metadata
+.git
+.gitignore
+.DS_Store
+
+# Node / Next.js caches
+node_modules
+**/.next/cache
+.turbo
+
+# Python caches
+**/__pycache__
+**/*.pyc
+
+# Logs and envs
+**/*.log
+.env
+backend/.env
+frontend/.env
+
+# Build outputs
+**/dist
+**/build
+**/.vercel
+
+

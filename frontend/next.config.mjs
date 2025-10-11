@@ -6,6 +6,7 @@ const __dirname = path.dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   webpack: (config) => {
     config.resolve = config.resolve || {};
     config.resolve.alias = {

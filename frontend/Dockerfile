@@ -1,66 +1,74 @@
-## Multi-stage build for Next.js app with Prisma client
+FROM node:20-alpine AS base
+# libc6-compat improves compatibility with some native deps
+RUN apk add --no-cache libc6-compat && corepack enable
+WORKDIR /app
 
-# ---------- Builder ----------
-FROM node:20-slim AS builder
+# -----------------------------
+# deps: install workspace deps (only frontend)
+# -----------------------------
+FROM base AS deps
+WORKDIR /app
+ENV NODE_ENV=development \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PRISMA_SKIP_POSTINSTALL_GENERATE=true
 
+# Workspace manifests
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json turbo.json ./
+# Frontend manifest only (speeds up install caching)
+COPY frontend/package.json frontend/package.json
+
+# Install only the frontend workspace dependencies (incl. dev deps for build/migrate)
+RUN pnpm install --frozen-lockfile --filter ./frontend...
+
+# -----------------------------
+# builder: generate prisma client + next build (standalone)
+# -----------------------------
+FROM deps AS builder
+WORKDIR /app/frontend
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Copy source code
+COPY frontend ./
+RUN mkdir -p public
+
+# Generate Prisma Client for the container platform, then build Next.js
+RUN pnpm prisma generate
+RUN pnpm build
+
+# -----------------------------
+# runner: production runtime using Next standalone output
+# -----------------------------
+FROM node:20-alpine AS runner
+WORKDIR /app
 ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1
-
-WORKDIR /app
-
-COPY package.json ./
-COPY tsconfig.json ./
-COPY next.config.mjs ./
-COPY postcss.config.mjs ./
-COPY tailwind.config.ts ./
-COPY prisma ./prisma
-RUN npm install
-
-# Generate Prisma Client (used by API routes)
-RUN npx prisma generate
-
-COPY app ./app
-COPY lib ./lib
-COPY components ./components
-
-RUN npm run build
-
-
-# ---------- Runner ----------
-FROM node:20-slim AS runner
-
-ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1
-
-WORKDIR /app
-
-# Install OpenSSL and certs for Prisma/DB connectivity at runtime
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    openssl libssl3 ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.mjs ./next.config.mjs
-COPY --from=builder /app/prisma ./prisma
-
-# ---------- Prisma-only stage (for migrations) ----------
-FROM node:20-slim AS prisma
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
-WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    openssl libssl3 ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-COPY package.json ./package.json
-RUN npm install --include=dev
-COPY prisma ./prisma
-RUN npx prisma generate
-CMD ["npx", "prisma", "migrate", "deploy"]
-
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000
 EXPOSE 3000
 
-CMD ["npm", "run", "start", "--", "-p", "3000"]
+# Copy standalone server and static assets
+COPY --from=builder /app/frontend/.next/standalone ./
+COPY --from=builder /app/frontend/.next/static ./.next/static
+COPY --from=builder /app/frontend/public ./public
 
+# Prisma schema is not needed at runtime, but keeping it doesn't harm
+COPY --from=builder /app/frontend/prisma ./prisma
+
+# Ensure Prisma Node-API engine is available in standalone runtime
+COPY --from=builder /app/frontend/node_modules/.prisma ./node_modules/.prisma
+
+CMD ["node", "server.js"]
+
+# -----------------------------
+# migrator: ephemeral job to run `prisma migrate deploy`
+# -----------------------------
+FROM deps AS migrator
+WORKDIR /app/frontend
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1
+
+# Only schema + migrations are required for deploy
+COPY frontend/prisma ./prisma
+
+# prisma CLI is available via devDependency installed in deps stage
+CMD ["pnpm", "prisma", "migrate", "deploy"]
 

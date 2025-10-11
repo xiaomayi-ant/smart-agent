@@ -93,3 +93,43 @@ uv run uvicorn src.api.server:app --reload --port 3001
 
 ## 许可证
 MIT
+
+## CI/CD 与 Docker 镜像
+
+### 构建与触发
+- 当推送到 `main` 或手动触发时，GitHub Actions 会根据路径过滤决定构建哪些镜像：
+  - 修改 `frontend/**` 或根依赖清单（`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`package.json`）时：构建并推送前端镜像与迁移镜像。
+  - 修改 `backend/**` 或根依赖清单时：构建并推送后端镜像。
+
+### 镜像产物（GHCR）
+- 前端应用：`ghcr.io/<OWNER>/smart-agent-frontend:latest` 与 `:SHA`
+- 前端迁移：`ghcr.io/<OWNER>/smart-agent-frontend-migrator:latest` 与 `:SHA`
+- 后端服务：`ghcr.io/<OWNER>/smart-agent-backend:latest` 与 `:SHA`
+
+> 注：仓库所有者 `<OWNER>` 会在 CI 中自动替换为 GitHub 组织或用户名的小写形式。
+
+### 服务器运行示例
+1) 可选：GHCR 登录（私有镜像时需要）
+```bash
+echo $GHCR_TOKEN | docker login ghcr.io -u <OWNER> --password-stdin
+```
+
+2) 运行数据库迁移（幂等）
+```bash
+docker run --rm \
+  --env-file ./frontend/.env \
+  ghcr.io/<OWNER>/smart-agent-frontend-migrator:latest
+```
+
+3) 启动前端（Next.js standalone）
+```bash
+docker run -d --name web \
+  -p 3000:3000 \
+  --env-file ./frontend/.env \
+  ghcr.io/<OWNER>/smart-agent-frontend:latest
+```
+
+### 环境变量
+- 通过 `.env` 在运行时注入容器；不要把敏感信息写入镜像。
+- 关键项：`DATABASE_URL`（Prisma 访问数据库）、`JWT_SECRET` 等。构建期所需的 `NEXT_PUBLIC_*` 按项目实际使用决定（可用运行时变量或 CI 注入）。
+
