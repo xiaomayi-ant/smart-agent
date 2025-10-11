@@ -49,14 +49,16 @@ ENV NODE_ENV=production \
 EXPOSE 3000
 
 # Copy standalone server and static assets
+# Next.js standalone 会在 .next/standalone 中复制整个项目结构
 COPY --from=builder /app/frontend/.next/standalone ./
-COPY --from=builder /app/frontend/.next/static ./.next/static
-COPY --from=builder /app/frontend/public ./public
+# 复制 static 到 frontend 子目录下（保持原有结构）
+COPY --from=builder /app/frontend/.next/static ./frontend/.next/static
+COPY --from=builder /app/frontend/public ./frontend/public
 
 # Prisma schema is not needed at runtime, but keeping it doesn't harm
-COPY --from=builder /app/frontend/prisma ./prisma
+COPY --from=builder /app/frontend/prisma ./frontend/prisma
 
-CMD ["node", "server.js"]
+CMD ["node", "frontend/server.js"]
 
 # -----------------------------
 # migrator: ephemeral job to run `prisma migrate deploy`
