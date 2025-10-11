@@ -6,8 +6,7 @@
   "license": "MIT",
   "workspaces": [
     "frontend",
-    "backend",
-    "frontend_r"
+    "backend"
   ],
   "scripts": {
     "build": "pnpm turbo run build",

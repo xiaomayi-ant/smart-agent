@@ -15,3 +15,10 @@ frontend/public/uploads/**
 .specstory/
 *.code-workspace
 
+# 测试和模板文件（不上传到 GitHub）
+MIDDLEWARE_FIX_GUIDE.md
+verify-middleware-fix.sh
+frontend/ENV_TEMPLATE.md
+backend/ENV_TEMPLATE.md
+
+*.tsbuildinfo
