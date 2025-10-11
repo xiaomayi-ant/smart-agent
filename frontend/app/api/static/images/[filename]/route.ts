@@ -6,13 +6,13 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { filename: string } }
+  { params }: { params: Promise<{ filename: string }> }
 ) {
   try {
     const fs = await import("fs/promises");
     const path = await import("path");
 
-    const filename = params.filename;
+    const { filename } = await params;
     const baseDir = path.join(process.cwd(), ".uploads", "images");
     const filePath = path.join(baseDir, filename);
 
