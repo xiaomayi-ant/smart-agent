@@ -50,7 +50,7 @@ openai-whisper>=20231117
 PyJWT>=2.8.0
 
 # Checkpoint (Postgres)
-langgraph-checkpoint-postgres==2.1.1
+langgraph-checkpoint-postgres==2.0.25
 # Prefer binary wheels to avoid system libpq/toolchain requirements
 psycopg-binary>=3.2.10
 psycopg-pool>=3.2.6
