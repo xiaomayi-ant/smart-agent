@@ -1,6 +1,7 @@
 FROM node:20-alpine AS base
 # libc6-compat improves compatibility with some native deps
-RUN apk add --no-cache libc6-compat && corepack enable
+# openssl is required by Prisma in all stages
+RUN apk add --no-cache libc6-compat openssl && corepack enable
 WORKDIR /app
 
 # -----------------------------
@@ -24,7 +25,6 @@ RUN pnpm install --frozen-lockfile --filter ./frontend...
 # builder: generate prisma client + next build (standalone)
 # -----------------------------
 FROM deps AS builder
-RUN apk add --no-cache openssl
 WORKDIR /app/frontend
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1
@@ -41,11 +41,11 @@ RUN pnpm build
 # runner: production runtime using Next standalone output
 # -----------------------------
 FROM node:20-alpine AS runner
+RUN apk add --no-cache openssl
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000
-RUN apk add --no-cache openssl
 EXPOSE 3000
 
 # Copy standalone server and static assets

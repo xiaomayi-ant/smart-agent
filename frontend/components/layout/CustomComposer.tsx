@@ -1,17 +1,19 @@
 "use client";
 
-import { Mic, Plus, AudioLines } from "lucide-react";
+import { Mic, Plus, AudioLines, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Composer as UIComposer } from "@assistant-ui/react";
+import { Composer as UIComposer, useAssistantRuntime } from "@assistant-ui/react";
 import { useComposerRuntime } from "@assistant-ui/react";
 import { useDictation } from "@/app/hooks/useDictation";
 import { useState, useCallback, useEffect, useRef } from "react";
 
 export function CustomComposer() {
   const composer = useComposerRuntime();
+  const runtime = useAssistantRuntime();
   const { isRecording, isBusy, start, stop } = useDictation();
   const [hint, setHint] = useState<string>("");
   const composingRef = useRef<boolean>(false);
+  const [isRunning, setIsRunning] = useState<boolean>(false);
 
   const [hasSendable, setHasSendable] = useState<boolean>(() => {
     try {
@@ -75,6 +77,30 @@ export function CustomComposer() {
     return () => { stopped = true; };
   }, [composer, recalc]);
 
+  // 订阅 runtime 状态，检测是否正在运行
+  useEffect(() => {
+    if (!runtime) return;
+    const anyRuntime: any = runtime as any;
+    if (typeof anyRuntime.subscribe === "function") {
+      const unsub = anyRuntime.subscribe(() => {
+        try {
+          const state = runtime.getState();
+          setIsRunning((state as any)?.isRunning ?? false);
+        } catch {}
+      });
+      return unsub;
+    }
+  }, [runtime]);
+
+  const handleCancel = useCallback(() => {
+    try {
+      runtime.cancel();
+      console.log('[Composer] 取消运行');
+    } catch (e) {
+      console.error('[Composer] 取消失败:', e);
+    }
+  }, [runtime]);
+
   const handleStart = useCallback(async () => {
     try {
       setHint("正在录音…松开结束");
@@ -128,7 +154,7 @@ export function CustomComposer() {
         />
       </div>
 
-      {/* trailing: 麦克风 + (发送/语音) */}
+      {/* trailing: 麦克风 + (发送/取消/语音) */}
       <div className="[grid-area:trailing] flex items-center gap-2">
         <Button
           type="button"
@@ -144,7 +170,18 @@ export function CustomComposer() {
         >
           <Mic className={`h-4 w-4 ${isRecording ? 'text-red-500' : ''}`} />
         </Button>
-        {hasSendable ? (
+        {isRunning ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="cancel"
+            className="rounded-full w-8 h-8 text-red-500 hover:text-red-600"
+            onClick={handleCancel}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        ) : hasSendable ? (
           <UIComposer.Action />
         ) : (
           <Button
