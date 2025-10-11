@@ -266,7 +266,10 @@ export const uploadAsync = async (file: File, threadId?: string): Promise<{
   }
 
   // 非图片仍走 Next 统一上传
-  const response = await fetch(`/api/upload?mode=async`, { method: 'POST', body: formData });
+  const fd = new FormData();
+  fd.append('file', file);
+  if (threadId) fd.append('threadId', threadId);
+  const response = await fetch(`/api/upload?mode=async`, { method: 'POST', body: fd });
   if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
   const result = await response.json();
   console.log(`[chatApi] 异步上传结果:`, result);
