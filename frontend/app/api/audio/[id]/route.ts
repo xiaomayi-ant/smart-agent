@@ -3,9 +3,9 @@ import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = params.id;
+    const { id } = await params;
     const audio = await prisma.audioInput.findUnique({ where: { id } });
     if (!audio) return new NextResponse("Not Found", { status: 404 });
     if (audio.storage === "url" && audio.url) {
