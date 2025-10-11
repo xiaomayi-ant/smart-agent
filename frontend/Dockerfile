@@ -24,6 +24,7 @@ RUN pnpm install --frozen-lockfile --filter ./frontend...
 # builder: generate prisma client + next build (standalone)
 # -----------------------------
 FROM deps AS builder
+RUN apk add --no-cache openssl
 WORKDIR /app/frontend
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1

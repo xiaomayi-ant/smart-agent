@@ -31,6 +31,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { id } = await params;
     if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
     
+    const headers = await withAuthHeaders();
+    const sid = (headers["Authorization"] || "").replace(/^Bearer\s+/i, "");
+    const userId = sid ? await verifySession(sid) : null;
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    
     const body = await req.json().catch(() => ({}));
     
     if (body.action === 'archive') {
