@@ -56,9 +56,6 @@ COPY --from=builder /app/frontend/public ./public
 # Prisma schema is not needed at runtime, but keeping it doesn't harm
 COPY --from=builder /app/frontend/prisma ./prisma
 
-# Ensure Prisma Node-API engine is available in standalone runtime
-COPY --from=builder /app/frontend/node_modules/.prisma ./node_modules/.prisma
-
 CMD ["node", "server.js"]
 
 # -----------------------------
