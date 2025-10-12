@@ -430,11 +430,11 @@ export function MyRuntimeProvider({
       console.log(`[REMOVE] 开始删除文件: ${attachment.name}`);
       
       try {
-        const localAttachment = attachments.find(a => a.id === attachment.id);
+        const localAttachment = attachmentsRef.current.find(a => a.id === attachment.id);
         const fileId = localAttachment?.fileId || attachment.id;
         const currentThreadId = threadIdRef.current || "";
         
-        console.log(`[REMOVE] 删除参数:`, { fileId, threadId, hasThreadId: !!threadId });
+        console.log(`[REMOVE] 删除参数:`, { fileId, threadId: currentThreadId, hasThreadId: !!currentThreadId });
         
         // 使用真实API删除文件
         const response = await fetch(`/api/files/${fileId}`, {
@@ -1113,11 +1113,12 @@ export function MyRuntimeProvider({
   // 调试：挂载只读句柄到 window，跟踪 runtime 生命周期
   useEffect(() => {
     try {
-      (window as any).__AUI_RT__ = { runtime, runtimeId: runtimeIdRef.current, conversationId };
-      console.log(`[RT] mount`, { runtimeId: runtimeIdRef.current, conversationId });
+      const rid = runtimeIdRef.current;
+      (window as any).__AUI_RT__ = { runtime, runtimeId: rid, conversationId };
+      console.log(`[RT] mount`, { runtimeId: rid, conversationId });
       return () => {
         try {
-          console.log(`[RT] unmount`, { runtimeId: runtimeIdRef.current, conversationId });
+          console.log(`[RT] unmount`, { runtimeId: rid, conversationId });
           if ((window as any).__AUI_RT__?.runtime === runtime) {
             delete (window as any).__AUI_RT__;
           }
@@ -1126,19 +1127,7 @@ export function MyRuntimeProvider({
     } catch {}
   }, [runtime, conversationId]);
 
-  // 只在 stableThreadId 确定且从未有过有效runtime时才显示Loading
-  // 如果曾经有过有效的runtime，即使当前rawRuntime为空也要保持界面稳定
-  if (!stableThreadId || (!runtime && !lastValidRuntimeRef.current)) {
-    console.log(`[RT] Waiting for threadId or initial runtime...`, { 
-      conversationId, 
-      hasThreadId: !!stableThreadId, 
-      hasRuntime: !!runtime,
-      hasLastValidRuntime: !!lastValidRuntimeRef.current
-    });
-    return <div>Loading...</div>;
-  }
-
-  // 提供 cancelStreaming：取消当前 SSE 读取
+  // 提供 cancelStreaming：取消当前 SSE 读取（上移，确保 hooks 顺序稳定）
   const cancelStreaming = useCallback(() => {
     try {
       // 只负责 UI 状态与生成器完成通知，不调用 ThreadRuntime 的 cancelRun（该实现不支持）
@@ -1151,6 +1140,18 @@ export function MyRuntimeProvider({
       }
     } catch {}
   }, []);
+
+  // 只在 stableThreadId 确定且从未有过有效runtime时才显示Loading
+  // 如果曾经有过有效的runtime，即使当前rawRuntime为空也要保持界面稳定
+  if (!stableThreadId || (!runtime && !lastValidRuntimeRef.current)) {
+    console.log(`[RT] Waiting for threadId or initial runtime...`, { 
+      conversationId, 
+      hasThreadId: !!stableThreadId, 
+      hasRuntime: !!runtime,
+      hasLastValidRuntime: !!lastValidRuntimeRef.current
+    });
+    return <div>Loading...</div>;
+  }
 
   return (
     <ChatUIContext.Provider value={{ isChatting: uiIsChatting, setIsChatting: setUiIsChatting, hasHomeReset, setHasHomeReset, isStreaming, setIsStreaming, cancelStreaming }}>
