@@ -697,13 +697,15 @@ export default function ClientPage({ params, initialHasHistory, initialMessages 
               <h1 className="text-xl md:text-2xl font-normal text-foreground">我们先从哪里开始呢？</h1>
             </div>
           </div>
-          {/* Row 2: 中线留白（输入框仅通过底部 overlay 注入，避免重复挂载） */}
-          <div className="w-full" />
+          {/* Row 2: 中线内联输入框（与首页一致的中部布局） */}
+          <div className="w-full">
+            <div className="mx-auto w-full px-6 md:px-10 lg:px-14" style={{ maxWidth: "calc((var(--chat-max-w) + 2 * 3.5rem) * 6/7)" }}>
+              <CustomComposer />
+            </div>
+          </div>
           {/* Row 3: 空行填充，维持对称 */}
           <div />
         </div>
-        {/* 通过 Portal 注入全局底部覆盖层中的输入框（与其他分支一致） */}
-        {composerHost && createPortal(<><CustomComposer /><ContentDisclaimer /></>, composerHost)}
       </div>
     );
   }
@@ -724,12 +726,6 @@ export default function ClientPage({ params, initialHasHistory, initialMessages 
               UserMessage: CustomUserMessage 
             }}
           />
-          {/* 流式指示：黑色状态点（基于 isStreaming） */}
-          {isStreaming ? (
-            <div className="my-2 w-full flex justify-start">
-              <span className="inline-block w-3 h-3 rounded-full bg-black" aria-label="streaming" />
-            </div>
-          ) : null}
           <div ref={endRef} aria-hidden className="h-1" />
         </div>
       </div>
