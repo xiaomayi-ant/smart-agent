@@ -326,13 +326,28 @@ async def collect_base_data(state: dict) -> Dict[str, Any]:
         print(f"[CollectBaseData] stream_callback 类型: {type(stream_callback)}")
         print(f"[CollectBaseData] 已初始化状态：清空 sql_results, vec_results, kg_results, merged")
     
+    # 视觉优先短路：若本轮已完成视觉识别，则直接按 regular 路径生成回答
+    try:
+        if bool(state.get("vision_processed")):
+            intent = "regular"
+    except Exception:
+        pass
+
     if intent == "regular":
         now = datetime.now()
+        # 若已完成视觉转写，追加一次性规则，避免模型输出“无法查看图片”等措辞
+        vision_note = ""
+        try:
+            if bool(state.get("vision_processed")):
+                vision_note = "\n【视觉说明】本轮已完成图片转写；请仅基于下述描述直接回答，避免出现‘无法查看图片’、‘抱歉无法查看图片’等措辞。"
+        except Exception:
+            pass
         updated_system_message = SystemMessage(
             content=(
                 f"{system_message_content.content} 以当前时间 {now} 作为分析起点。\n"
                 f"基于以下用户槽位概要进行回答（不可杜撰）：{(state.get('intent_composed') or '') if state.get('intent_composed') else '无'}\n"
                 f"可参考槽位字段：{state.get('intent_slots') or {}}"
+                f"{vision_note}"
             )
         )
         
@@ -1025,33 +1040,29 @@ def assign_workers_by_plan(state: Dict[str, Any]):
         call = (step.get("call") or "").lower()
         args = step.get("args") or {}
         if call == "sql":
-            # 确保 args 正确传递到SQL子图，同时传递上下文信息
+            # 仅传递该子图所需入参与可增量合并的 messages；
+            # 避免在并行分支写顶层的 thread_id/user_id 以消除并发冲突
             sql_state = {"sql_in": args, "waiting": 0}
             sql_state.update({
                 "messages": state.get("messages", []),
-                "user_id": state.get("user_id"),
-                "thread_id": state.get("thread_id"),
             })
             sends.append(Send("SQL_Subgraph", sql_state))
             print(f"[Orchestrator] Sending to SQL_Subgraph: sql_in={args} user_id={state.get('user_id')}")
         elif call == "vec":
-            # 确保 args 正确传递到向量子图
+            # 仅传递该子图所需入参与可增量合并的 messages；
+            # 避免在并行分支写顶层的 thread_id/user_id 以消除并发冲突
             vec_state = {"vec_in": args, "waiting": 0}
-            # 同时传递必要的上下文信息
             vec_state.update({
                 "messages": state.get("messages", []),
-                "user_id": state.get("user_id"),
-                "thread_id": state.get("thread_id"),
             })
             sends.append(Send("Vector_Subgraph", vec_state))
             print(f"[Orchestrator] Sending to Vector_Subgraph: vec_in={args} user_id={state.get('user_id')}")
         elif call == "kg":
-            # 确保 args 正确传递到KG子图，同时传递上下文信息
+            # 仅传递该子图所需入参与可增量合并的 messages；
+            # 避免在并行分支写顶层的 thread_id/user_id 以消除并发冲突
             kg_state = {"kg_in": args, "waiting": 0}
             kg_state.update({
                 "messages": state.get("messages", []),
-                "user_id": state.get("user_id"), 
-                "thread_id": state.get("thread_id"),
             })
             sends.append(Send("KG_Subgraph", kg_state))
             print(f"[Orchestrator] Sending to KG_Subgraph: kg_in={args} user_id={state.get('user_id')}")
@@ -1511,27 +1522,26 @@ async def response_writer(state: Dict[str, Any]) -> Dict[str, Any]:
             header = f"你是严谨的数据分析助手。数据库查询已完成，共返回{len(merged)}条记录"
             if truncated:
                 header += f"（以下展示前{len(preview_lines)}条）"
-            header += "。\n\n⚠️ 重要：数据已经在下方，请直接使用这些数据回答问题，不要说\"无法访问数据库\"。\n\n"
-            sys_content = header + "\n".join(preview_lines) + "\n\n请用自然语言总结这些数据，回答用户的问题。"
+            header += "。\n\n⚠️ 重要：以下数据就是你作答所需的证据。必须严格基于这些数据回答，不得输出诸如\"未找到\"、\"证据不足\"、\"无法访问数据库\"等措辞。\n\n"
+            sys_content = header + "\n".join(preview_lines) + "\n\n请用自然语言总结这些数据并直接回答用户的问题。"
         elif data_type == "mixed":
-            # ✅ 混合数据类型的提示
+            # Vector + SQL 混合：明确强制使用证据
             header = f"你是严谨的助手。数据库查询和文档搜索已完成，共返回{len(merged)}条数据"
             if truncated:
                 header += f"（以下展示前{len(preview_lines)}条）"
-            header += "。\n\n⚠️ 重要：数据已经在下方，请直接使用这些数据回答问题。不要说\"无法访问数据库\"或\"请自己查询\"。\n\n"
-            sys_content = header + "\n".join(preview_lines) + "\n\n请用自然语言总结这些数据，回答用户的问题。如有搜索结果，可引用编号如[1][2]。"
+            header += "。\n\n⚠️ 重要：以下数据就是你作答所需的证据。必须严格基于这些数据回答，不得输出\"未找到\"、\"证据不足\"、\"请自己查询\"等措辞。\n\n"
+            sys_content = header + "\n".join(preview_lines) + "\n\n请用自然语言总结这些数据并回答用户问题；如引用文档内容，请使用编号如[1][2]。"
         else:
-            # Vector类型：使用正向角色设定，避免refusal
-            header = f"你是一个专业的信息分析助手。你的任务是总结和分析已提供的文档内容。\n\n"
-            header += f"📊 任务背景：系统已从文档库中检索到{len(merged)}个相关文档"
+            # Vector 类型：强制使用证据
+            header = f"你是一个专业的信息分析助手。你的任务是基于下列证据总结并回答用户问题。\n\n"
+            header += f"📊 任务背景：检索到{len(merged)}个相关文档"
             if truncated:
                 header += f"（以下展示前{len(preview_lines)}个）"
             header += "。\n\n"
-            header += f"📋 你的任务：\n"
-            header += f"1. 仔细阅读下方编号为[1]到[{len(preview_lines)}]的文档内容\n"
-            header += f"2. 根据用户的问题，从这些文档中提取关键信息\n"
-            header += f"3. 用自然语言总结你的发现，必要时引用文档编号（如：根据[1]和[2]...）\n"
-            header += f"4. 如果文档中包含用户需要的信息，请直接总结；如果不包含，请说明\"提供的文档中未找到相关信息\"\n\n"
+            header += f"📋 作答要求：\n"
+            header += f"1. 仅基于下方编号为[1]到[{len(preview_lines)}]的文档内容作答；\n"
+            header += f"2. 必要时引用编号（如：根据[1][2]）；\n"
+            header += f"3. 严禁输出\"未找到\"、\"证据不足\"等措辞（因为已提供证据）；\n\n"
             header += f"📄 文档内容：\n"
             sys_content = header + "\n".join(preview_lines)
     else:

@@ -7,6 +7,11 @@ export interface ChatUIContextValue {
   setIsChatting: (value: boolean) => void;
   hasHomeReset?: boolean;
   setHasHomeReset?: (value: boolean) => void;
+  // 流式运行态（供三态按钮显示“中止”）
+  isStreaming?: boolean;
+  setIsStreaming?: (value: boolean) => void;
+  // 主动中止当前流
+  cancelStreaming?: () => void;
 }
 
 export const ChatUIContext = createContext<ChatUIContextValue | null>(null);

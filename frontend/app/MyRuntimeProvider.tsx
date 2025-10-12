@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { ChatUIContext } from "@/lib/chatUiContext";
-import { AssistantRuntimeProvider, AttachmentAdapter, PendingAttachment, CompleteAttachment, useThreadRuntime } from "@assistant-ui/react";
+import { AssistantRuntimeProvider, AttachmentAdapter, PendingAttachment, CompleteAttachment } from "@assistant-ui/react";
 import { useLangGraphRuntime, LangChainMessage } from "@assistant-ui/react-langgraph";
 import { createThread, sendMessage, visionStream, uploadAsync } from "@/lib/chatApi";
 import { normalizeImageSrc as sharedNormalizeImageSrc } from "@/lib/utils";
@@ -38,8 +38,16 @@ export function MyRuntimeProvider({
   const attachmentsRef = useRef<LocalAttachment[]>([]); // 使用ref来保存最新状态
   const [isUploading, setIsUploading] = useState(false); // 添加上传状态标志
   const pendingUploadsRef = useRef<Set<string>>(new Set()); // 跟踪进行中的上传
-  const isStreamingRef = useRef(false); // 添加流式处理状态标志
+  const isStreamingRef = useRef(false); // 内部标志（避免重复调用）
+  const [isStreaming, setIsStreaming] = useState(false); // 对外可观察状态，用于UI三态
   const lastValidRuntimeRef = useRef<any>(null); // 保持最后一个有效的runtime
+  const streamDoneRef = useRef<{ promise: Promise<void>; resolve: () => void } | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // 调试：监控 isStreaming 状态变化
+  useEffect(() => {
+    console.log('[MyRuntimeProvider] isStreaming 状态变化为:', isStreaming);
+  }, [isStreaming]);
   // 使用传入的 threadId，如果没有则异步获取
   const [threadId, setThreadId] = useState<string | undefined>(propThreadId);
   const threadIdRef = useRef<string | undefined>(propThreadId);
@@ -478,21 +486,35 @@ export function MyRuntimeProvider({
 
   // 用 useCallback 固定 stream 引用
   const stream = useCallback(async (messages: LangChainMessage[], config: any) => {
-      // 🔥 立即打印，确认 stream() 是否被立即调用
-      console.log(`[TIMING] 🚀 stream() 被调用！时间: ${new Date().toISOString()}`);
-      
       const STREAM_DEBUG = process.env.NEXT_PUBLIC_DEBUG_STREAM === "true";
+      if (STREAM_DEBUG) {
+        console.log(`[STREAM] stream() 被调用，消息数: ${messages.length}, 时间: ${new Date().toISOString()}`);
+      }
       
-      // 防止重复调用
+      // 防止重复调用：返回一个等待主流结束后再完成的占位生成器
       if (isStreamingRef.current) {
-        console.log(`[STREAM] 检测到重复调用，跳过`);
-        // 返回一个空的异步生成器
+        console.log(`[STREAM] 检测到重复调用，等待主流结束`);
+        const waiter = streamDoneRef.current?.promise;
         return (async function* () {
-          yield { event: "error", data: { error: "重复调用被跳过" } };
+          try {
+            if (waiter) await waiter;
+          } catch {}
+          // 与主流完成时机对齐，立即宣告完成
+          yield { event: "messages/complete", data: [] } as any;
         })();
       }
       
       isStreamingRef.current = true;
+      // 设置流式状态，供 CustomComposer 显示中断按钮
+      console.log('[MyRuntimeProvider] 设置 isStreaming = true');
+      // 初始化主流完成的通知句柄
+      try {
+        let resolve!: () => void;
+        const promise = new Promise<void>((r) => { resolve = r; });
+        streamDoneRef.current = { promise, resolve };
+      } catch {}
+      setIsStreaming(true);
+      console.log('[MyRuntimeProvider] setIsStreaming(true) 已调用');
       if (STREAM_DEBUG) {
         console.log(`[STREAM] 开始处理消息，消息数量: ${messages.length}`);
         console.log(`[STREAM] Using threadId:`, stableThreadId);
@@ -507,22 +529,7 @@ export function MyRuntimeProvider({
       try {
         const t0 = performance.now?.() || Date.now();
         console.log(`[PERF front] stream-start`);
-        // 乐观回显文本（立即进入消息区）
-        try {
-          const last = messages[messages.length - 1] as any;
-          const text = (() => {
-            if (!last) return '';
-            if (typeof last?.content === 'string') return last.content;
-            if (Array.isArray(last?.content)) {
-              const t = last.content.find((p: any) => p?.type === 'text' && typeof p.text === 'string');
-              return t?.text || '';
-            }
-            return '';
-          })();
-          if (text && typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('appendTextMessage', { detail: { text } }));
-          }
-        } catch {}
+        // 移除乐观回显，交由 Assistant UI 自身处理，避免重复触发运行
 
         // 使用稳定的threadId，确保一致性
         // 确保发送前有真实 threadId（会话页必须等到 threadIdRef 有值或 URL 已提供）
@@ -581,6 +588,7 @@ export function MyRuntimeProvider({
         // 处理 langchain/langgraph-sdk的流式响应转换为@assistant-ui/react-langgraph期望的格式
         const convertToLangGraphFormat = async function* (streamResponse: any) {
           try {
+            console.log('[convertToLangGraphFormat] 生成器开始');
             let hasYieldedContent = false;
             let chunkCount = 0;
             let accumulatedContent = ""; // 累积Python后端的内容
@@ -793,16 +801,21 @@ export function MyRuntimeProvider({
             const errorMessageId = `msg_${Date.now()}_err`;
             yield { event: 'messages/partial', data: [{ id: errorMessageId, type: 'ai', content: '处理过程中出现错误，请重试。' }] };
             yield { event: 'messages/complete', data: [] };
+          } finally {
+            // 流完成后：触发附件清理，随后统一清理运行态
+            try {
+              setAttachments((prev) => {
+                const newState = prev.filter(a => (a?.status?.type ?? '') !== 'complete');
+                updateAttachmentsRef(newState);
+                console.log(`[STREAM] complete: 清理已完成附件，剩余数量: ${newState.length}`);
+                return newState;
+              });
+            } catch {}
+            // 统一落地：结束运行态并通知所有等待者
+            try { isStreamingRef.current = false; } catch {}
+            try { setIsStreaming(false); } catch {}
+            try { streamDoneRef.current?.resolve(); } catch {}
           }
-          // 流完成后：此处触发附件清理，避免提前清理导致 UI 竞争
-          try {
-            setAttachments((prev) => {
-              const newState = prev.filter(a => (a?.status?.type ?? '') !== 'complete');
-              updateAttachmentsRef(newState);
-              console.log(`[STREAM] complete: 清理已完成附件，剩余数量: ${newState.length}`);
-              return newState;
-            });
-          } catch {}
         };
 
         // 检查是否有附件需要处理，包括图片和文档文件
@@ -974,11 +987,12 @@ export function MyRuntimeProvider({
           }
           
           const tReq0 = performance.now?.() || Date.now();
+          abortControllerRef.current = new AbortController();
           const streamResponse = await sendMessage({
             conversationId: finalConversationId || "",
             threadId: finalThreadId!,
             messages: enhancedMessages,
-            signal: config?.abortSignal || config?.signal,
+            signal: abortControllerRef.current.signal,
           });
           console.log(`[PERF front] sendMessage-called +${(performance.now?.() || Date.now()) - tReq0}ms since req`);
           
@@ -1035,11 +1049,12 @@ export function MyRuntimeProvider({
           console.log(`[STREAM] 发送消息到后端，消息数量: ${prunedMessages.length}`);
 
           const tReq1 = performance.now?.() || Date.now();
+          abortControllerRef.current = new AbortController();
           const streamResponse = await sendMessage({
             conversationId: finalConversationId || "",
             threadId: finalThreadId!,
             messages: prunedMessages,
-            signal: config?.abortSignal || config?.signal,
+            signal: abortControllerRef.current.signal,
           });
           console.log(`[PERF front] sendMessage-called(no-attach) +${(performance.now?.() || Date.now()) - tReq1}ms since req`);
           
@@ -1049,8 +1064,8 @@ export function MyRuntimeProvider({
         console.error(`[STREAM] 处理错误:`, error);
         throw error;
       } finally {
-        isStreamingRef.current = false;
-        if (STREAM_DEBUG) console.log(`[STREAM] 处理完成`);
+        // 外层 finally 不再清理 isStreaming，清理逻辑统一在生成器 finally 中完成
+        if (STREAM_DEBUG) console.log(`[STREAM] 处理完成(outer finally reached)`);
         try { if (STREAM_DEBUG) console.log(`[STREAM] runtime post-export len`, (lastValidRuntimeRef.current as any)?.export?.()?.messages?.length); } catch {}
       }
   }, [stableThreadId, conversationId]);
@@ -1123,42 +1138,29 @@ export function MyRuntimeProvider({
     return <div>Loading...</div>;
   }
 
+  // 提供 cancelStreaming：取消当前 SSE 读取
+  const cancelStreaming = useCallback(() => {
+    try {
+      // 只负责 UI 状态与生成器完成通知，不调用 ThreadRuntime 的 cancelRun（该实现不支持）
+      if (isStreamingRef.current) {
+        console.log('[RT] cancelStreaming: user requested');
+        try { abortControllerRef.current?.abort(); } catch {}
+        try { setIsStreaming(false); } catch {}
+        try { streamDoneRef.current?.resolve(); } catch {}
+        isStreamingRef.current = false;
+      }
+    } catch {}
+  }, []);
+
   return (
-    <ChatUIContext.Provider value={{ isChatting: uiIsChatting, setIsChatting: setUiIsChatting, hasHomeReset, setHasHomeReset }}>
+    <ChatUIContext.Provider value={{ isChatting: uiIsChatting, setIsChatting: setUiIsChatting, hasHomeReset, setHasHomeReset, isStreaming, setIsStreaming, cancelStreaming }}>
       <AssistantRuntimeProvider runtime={runtime}>
-        <MessageAppender />
         {children}
       </AssistantRuntimeProvider>
     </ChatUIContext.Provider>
   );
 }
 
-// 在 Provider 内部使用 useThreadRuntime 来真正向线程追加文本消息
-function MessageAppender() {
-  const thread = useThreadRuntime();
-  useEffect(() => {
-    console.log('[MessageAppender] mount - 简化版本，只处理文本消息');
-    const onAppendText = (e: Event) => {
-      console.log('[MessageAppender] 收到 appendTextMessage 事件');
-      const ce = e as CustomEvent<{ text: string }>;
-      const text = ce?.detail?.text || "";
-      if (!text) return;
-      try {
-        const before = (thread as any)?.export?.()?.messages?.length;
-        console.log('[MessageAppender] 追加前线程消息数:', before);
-        (thread as any)?.append?.({ id: `msg_${Date.now()}`, type: 'human', content: [{ type: 'text', text }] });
-        const after = (thread as any)?.export?.()?.messages?.length;
-        console.log('[MessageAppender] 已追加文本消息:', text, '；线程消息数:', after);
-      } catch {}
-    };
-    window.addEventListener('appendTextMessage', onAppendText as EventListener);
-    return () => {
-      window.removeEventListener('appendTextMessage', onAppendText as EventListener);
-      console.log('[MessageAppender] unmount');
-    };
-  }, [thread]);
-  return null;
-}
 
 // 调试：在 Provider 层观察 runtime 的生命周期与 import/export 调用（不改变行为）
 // 将在 runtime 变更时打点，并将只读引用挂到 window 便于控制台比对

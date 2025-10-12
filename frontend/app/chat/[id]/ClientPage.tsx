@@ -24,6 +24,7 @@ import { createPortal } from "react-dom";
 import CustomComposer from "@/components/layout/CustomComposer";
 import FileBubble from "@/components/ui/file-bubble";
 import React from "react";
+import { useChatUI } from "@/lib/chatUiContext";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -461,6 +462,7 @@ function ContentDisclaimer() {
 
 export default function ClientPage({ params, initialHasHistory, initialMessages = [] }: { params: { id: string }; initialHasHistory: boolean; initialMessages?: any[]; }) {
   const [isChatting, setIsChatting] = useState(false);
+  const { isStreaming } = useChatUI();
   const endRef = useRef<HTMLDivElement | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const chatContainerRef = useRef<HTMLElement | null>(null);
@@ -576,7 +578,21 @@ export default function ClientPage({ params, initialHasHistory, initialMessages 
   // 改为静态渲染 PreloadedMessages 组件
 
   // 绑定 portal 宿主
-  useEffect(() => { try { const el = document.getElementById("composer-host"); if (el) setComposerHost(el); } catch {} }, []);
+  // 更健壮：等待 composer-host 挂载（短轮询，最多 1 秒）
+  useEffect(() => {
+    let stopped = false;
+    let loops = 0;
+    const tryFind = () => {
+      if (stopped) return;
+      const el = document.getElementById("composer-host");
+      if (el) { setComposerHost(el); return; }
+      loops++;
+      if (loops > 20) return; // 最多 1 秒（20 * 50ms）
+      setTimeout(tryFind, 50);
+    };
+    tryFind();
+    return () => { stopped = true; };
+  }, []);
   useEffect(() => { try { const el = document.getElementById("composer-host-center"); if (el) setCenterHost(el); } catch {} }, []);
 
   // 滚动容器/底部哨兵
@@ -659,6 +675,7 @@ export default function ClientPage({ params, initialHasHistory, initialMessages 
                 UserMessage: CustomUserMessage 
               }}
             />
+            {/* 移除重复的流式指示，避免与其他位置的指示点叠加 */}
             <div ref={endRef} aria-hidden className="h-1" />
           </div>
         </div>
@@ -680,12 +697,8 @@ export default function ClientPage({ params, initialHasHistory, initialMessages 
               <h1 className="text-xl md:text-2xl font-normal text-foreground">我们先从哪里开始呢？</h1>
             </div>
           </div>
-          {/* Row 2: 输入框严格居中，宽度与底部 overlay 一致 */}
-          <div className="w-full">
-            <div className="mx-auto w-full px-6 md:px-10 lg:px-14" style={{ maxWidth: "calc((var(--chat-max-w) + 2 * 3.5rem) * 6/7)" }}>
-              <CustomComposer />
-            </div>
-          </div>
+          {/* Row 2: 中线留白（输入框仅通过底部 overlay 注入，避免重复挂载） */}
+          <div className="w-full" />
           {/* Row 3: 空行填充，维持对称 */}
           <div />
         </div>
@@ -709,6 +722,12 @@ export default function ClientPage({ params, initialHasHistory, initialMessages 
               UserMessage: CustomUserMessage 
             }}
           />
+          {/* 流式指示：黑色状态点（基于 isStreaming） */}
+          {isStreaming ? (
+            <div className="my-2 w-full flex justify-start">
+              <span className="inline-block w-3 h-3 rounded-full bg-black" aria-label="streaming" />
+            </div>
+          ) : null}
           <div ref={endRef} aria-hidden className="h-1" />
         </div>
       </div>

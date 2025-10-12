@@ -87,6 +87,20 @@ export const sendMessage = async (params: {
 
     const decoder = new TextDecoder();
     let buffer = "";
+    // 当 signal.abort 时，立即取消 reader，保证中止即时生效
+    let abortListener: any | null = null;
+    try {
+      if (params.signal) {
+        if (params.signal.aborted) {
+          try { await reader.cancel(); } catch {}
+          return; // 直接结束生成器
+        }
+        abortListener = async () => {
+          try { await reader.cancel(); } catch {}
+        };
+        params.signal.addEventListener("abort", abortListener, { once: true } as any);
+      }
+    } catch {}
 
     try {
       while (true) {
@@ -152,7 +166,8 @@ export const sendMessage = async (params: {
         throw e;
       }
     } finally {
-      reader.releaseLock();
+      try { reader.releaseLock(); } catch {}
+      try { if (params.signal && abortListener) params.signal.removeEventListener("abort", abortListener as any); } catch {}
     }
   })();
 

@@ -212,6 +212,7 @@ async def stream_response(thread_id: str, request: StreamRequest, http_request: 
         current_content = ""
         has_streamed_content = False
         tool_calls = []
+        vision_processed = False  # 本轮是否已完成视觉识别（用于 collect 阶段短路）
         
         # 使用队列实时推送事件，避免缓冲导致一次性输出
         event_queue: asyncio.Queue[Any] = asyncio.Queue()
@@ -467,12 +468,20 @@ async def stream_response(thread_id: str, request: StreamRequest, http_request: 
                         print(f"[Vision] 图片识别完成: {image_description[:150]}...")
                         
                         # 将图片消息替换为文本描述
-                        # 格式：[图片内容] + 用户问题
-                        new_text_content = f"[用户上传了一张图片，图片内容描述如下]\n{image_description}\n\n[用户的问题]\n{original_question}"
+                        # 在最前加入明确指令：已完成图片转写，直接基于描述回答，避免“无法查看图片”等措辞
+                        # 格式：视觉说明 + [图片内容] + 用户问题
+                        new_text_content = (
+                            f"【视觉说明】本轮图片已由系统转写为文字；请仅基于下述描述直接回答，避免出现‘无法查看图片’、‘抱歉无法查看图片’等措辞。\n"
+                            f"[用户上传了一张图片，图片内容描述如下]\n{image_description}\n\n[用户的问题]\n{original_question}"
+                        )
                         
                         # 替换原消息
                         lc_messages[vision_message_index] = HumanMessage(content=new_text_content)
-                        
+                        # 标记：已完成视觉识别
+                        try:
+                            vision_processed = True
+                        except Exception:
+                            pass
                         print("[Vision] 图片已转换为文本描述，进入正常处理流程")
             
             except Exception as e:
@@ -567,6 +576,12 @@ async def stream_response(thread_id: str, request: StreamRequest, http_request: 
                         req_uid = getattr(http_request.state, "user_id", None)
                         if req_uid:
                             state_payload["user_id"] = req_uid
+                    except Exception:
+                        pass
+                    # 若已完成视觉识别，通知上游在 collect 阶段短路为常规回答
+                    try:
+                        if vision_processed:
+                            state_payload["vision_processed"] = True
                     except Exception:
                         pass
                     # 调试模式：输出逐节点事件；生产默认仍用 ainvoke

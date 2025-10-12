@@ -208,6 +208,8 @@ export async function POST(req: NextRequest) {
     method: "POST",
     headers: { ...apiHeaders, Connection: 'keep-alive' },
     body: JSON.stringify({ input: inputPayload }),
+    // 将前端中止透传到上游，避免多余占用
+    signal: (req as any).signal,
   });
   logp(`upstream-resp +${Date.now() - tUp0}ms`);
 
@@ -224,11 +226,23 @@ export async function POST(req: NextRequest) {
     start: async (controller) => {
       const reader = upstream.body!.getReader();
       let firstBlockAt: number | null = null;
+      let aborted = false;
+      const onAbort = () => {
+        aborted = true;
+        try { reader.cancel(); } catch {}
+        try { controller.close(); } catch {}
+      };
+      try { (req as any).signal?.addEventListener('abort', onAbort, { once: true } as any); } catch {}
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          if (value) controller.enqueue(value);
+          if (value) {
+            try { controller.enqueue(value); } catch {
+              // 若控制器已关闭（例如前端中止），结束读取循环
+              break;
+            }
+          }
 
           // 累积并解析 SSE 块，以便提取最终文本
           buffer += decoder.decode(value, { stream: true });
@@ -265,22 +279,27 @@ export async function POST(req: NextRequest) {
           }
         }
       } catch (e) {
-        console.error("[chat/stream] upstream read error", e);
-        try { controller.error(e as any); } catch {}
-        return;
+        // 中止场景不视为错误；让流程继续到收尾阶段写库
+        if (!aborted) {
+          console.error("[chat/stream] upstream read error", e);
+          try { controller.error(e as any); } catch {}
+        }
+        // 不 return，统一在后续收尾里处理入库
       } finally {
         try { reader.releaseLock(); } catch {}
+        try { (req as any).signal?.removeEventListener('abort', onAbort as any); } catch {}
       }
 
       // 流结束：写入助手消息并更新会话时间与 threadId；若会话无标题则用首条用户消息生成默认标题
       try {
+        // 只要有输出（不论长度/是否中止），就记录为一条完整助手消息
         if (assistantText && assistantText.trim().length > 0) {
           await prisma.message.create({
             data: {
               id: randomUUID(),
               conversationId,
               role: "ASSISTANT",
-              content: { type: "text", text: assistantText },
+              content: { type: "text", text: assistantText, meta: { aborted } },
               userId,
             },
             select: { id: true },
@@ -312,7 +331,7 @@ export async function POST(req: NextRequest) {
         console.warn("[chat/stream] failed to persist assistant message/update conv:", e);
       }
 
-      try { controller.close(); } catch {}
+      try { if (!aborted) controller.close(); } catch {}
       logp('stream-closed');
     },
   });
