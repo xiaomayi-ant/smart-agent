@@ -965,7 +965,7 @@ export function MyRuntimeProvider({
               const response = await fetch('/api/conversations', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: '新聊天' }),
+                body: JSON.stringify({ title: '新聊天', threadId: currentThreadId }),
               });
               if (response.ok) {
                 const newConv = await response.json();
@@ -974,7 +974,7 @@ export function MyRuntimeProvider({
                 console.log(`[STREAM] 创建新会话成功（附件）:`, { conversationId: finalConversationId, threadId: finalThreadId });
                 
                 // 同页：仅替换 URL，继续在本页流式
-                try { window.history.replaceState({}, '', `/chat/${finalConversationId}`); } catch {}
+                try { window.history.replaceState({}, '', `/chat/${finalConversationId}?tid=${encodeURIComponent(String(finalThreadId))}`); } catch {}
                 // 方案C：上下文层已切换，无需补派发
               } else {
                 console.error(`[STREAM] 创建会话失败（附件）:`, response.status);
@@ -1013,7 +1013,7 @@ export function MyRuntimeProvider({
               const response = await fetch('/api/conversations', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: '新聊天' }),
+                body: JSON.stringify({ title: '新聊天', threadId: currentThreadId }),
               });
               if (response.ok) {
                 const newConv = await response.json();
@@ -1022,7 +1022,7 @@ export function MyRuntimeProvider({
                 console.log(`[STREAM] 创建新会话成功:`, { conversationId: finalConversationId, threadId: finalThreadId });
                 
                 // 同页：仅替换 URL，继续在本页流式
-                try { window.history.replaceState({}, '', `/chat/${finalConversationId}`); } catch {}
+                try { window.history.replaceState({}, '', `/chat/${finalConversationId}?tid=${encodeURIComponent(String(finalThreadId))}`); } catch {}
                 // 方案C：上下文层已切换，无需补派发
               } else {
                 console.error(`[STREAM] 创建会话失败:`, response.status);
