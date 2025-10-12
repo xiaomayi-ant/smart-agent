@@ -702,6 +702,8 @@ export default function ClientPage({ params, initialHasHistory, initialMessages 
           {/* Row 3: 空行填充，维持对称 */}
           <div />
         </div>
+        {/* 通过 Portal 注入全局底部覆盖层中的输入框（与其他分支一致） */}
+        {composerHost && createPortal(<><CustomComposer /><ContentDisclaimer /></>, composerHost)}
       </div>
     );
   }
