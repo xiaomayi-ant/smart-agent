@@ -6,7 +6,6 @@
 
 - **FastAPI** - 高性能异步Web框架
 - **LangChain + LangGraph** - AI工作流管理
-- **OpenAI GPT-4** - 核心AI模型
 - **MySQL** - 关系型数据库
 - **Milvus** - 向量数据库
 
