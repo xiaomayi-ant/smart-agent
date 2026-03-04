@@ -1,135 +1,209 @@
+<div align="center">
+
 # Smart Agent Platform
+### FastAPI + LangGraph + Next.js Intelligent Assistant System
 
-基于 Python 后端（FastAPI + LangGraph）与 Next.js 前端的智能助手平台。
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-0.0.20%2B-121212?style=for-the-badge)](https://github.com/langchain-ai/langgraph)
+[![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Primary%20Store-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
-- 在线前端地址：https://sumoer.chat
-- 仓库：`https://github.com/xiaomayi-ant/smart-agent`
-- 许可证：MIT
+</div>
 
-## 目录结构
+<hr>
+
+<p align="center">
+  <a href="./backend/README.md">Backend</a> |
+  <a href="./frontend/README.md">Frontend</a> |
+  <a href="./backend/env.example">Backend Env</a> |
+  <a href="./frontend/env.example">Frontend Env</a> |
+  <a href="./docker-compose.yml">Docker Compose</a>
+</p>
+
+> [!NOTE]
+> 首次运行前请先准备 `backend/.env` 与 `frontend/.env`，并完成 Prisma 迁移；前后端 `JWT_SECRET` 必须一致。
+
+## Introduction
+
+本项目采用前后端分离架构：
+
+- 前端（`frontend`）提供聊天 UI、会话管理、文件上传与 API 代理。
+- 后端（`backend`）负责 Agent 编排、流式回答、工具调用与线程持久化。
+- 对话与业务数据依赖 PostgreSQL / MySQL / 向量库等外部服务。
+
+## Features
+
+- 流式对话：`/api/threads/{thread_id}/runs/stream`
+- 多子图编排：SQL / Vector / KG 子图聚合
+- 线程与消息持久化（PostgreSQL）
+- Prisma 会话与附件数据模型（PostgreSQL）
+- 工具审批流（Tool approval）
+- 可选能力：文档检索（Milvus）、知识图谱（Neo4j/Graphiti）、语音 ASR
+
+## Architecture
+
+```text
+Browser
+  -> Frontend (Next.js App Router)
+      -> Frontend API Routes (auth/proxy/persistence)
+          -> Backend FastAPI (/api/*)
+              -> LangGraph Orchestrator
+                  -> SQL tools (MySQL)
+                  -> Vector tools (Milvus + Embeddings)
+                  -> KG tools (Neo4j/Graphiti)
+              -> PostgreSQL thread/checkpoint persistence (PG_DSN)
+
+Frontend Prisma
+  -> PostgreSQL (DATABASE_URL)
 ```
-.
-├── backend/   # FastAPI + LangGraph 服务
-└── frontend/  # Next.js (App Router) + Prisma 客户端
-```
 
-## 运行环境
-- Node.js 20+ 与 pnpm 9+
-- Python 3.11+
-- PostgreSQL（前端 Prisma 使用）
-- 可选：uv（Python 包管理/运行）
+## Quick Start
 
-## 本地开发
+### 1. Prerequisites
 
-### 后端
+| Component | Version / Requirement |
+| --- | --- |
+| Node.js | 20+ |
+| pnpm | 9+ |
+| Python | 3.11+ |
+| uv | 0.9+（建议） |
+| PostgreSQL | 必需（前端 Prisma + 后端线程持久化） |
+| MySQL | 建议准备（后端 SQL 工具配置要求） |
+| Milvus / Neo4j | 可选（按功能启用） |
+
+### 2. Install Dependencies
+
 ```bash
-cd backend
-# 依赖（任选其一）
-# A) uv
-uv sync
-# B) venv + pip
-# python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
-
-# 启动（开发）
-uv run uvicorn src.api.server:app --reload --host 0.0.0.0 --port 3001
-# 文档: http://localhost:3001/docs
-```
-
-### 前端
-```bash
-cd frontend
+# repo root
 pnpm install
-pnpm dev   # 默认 http://localhost:3000
+
+# backend python deps
+cd backend
+uv sync
+cd ..
 ```
 
-> 提示：本项目的运行依赖若干配置项（如数据库、第三方服务等）。请在本地以 `.env` 文件进行配置（不在本 README 展示具体内容），并确保前后端均已正确加载自身的配置文件。
+### 3. Configure Environment
 
-## 部署
-
-### 前端（sumoer.chat）
-- 构建与启动：
 ```bash
-pnpm build
-pnpm start
-```
-- 确保前端可访问后端网关/API，反向代理/CORS 已正确配置。
-
-### 后端
-- 建议以 `uvicorn` 或 `gunicorn` + `uvicorn.workers.UvicornWorker` 方式运行，并置于反向代理后启用 HTTPS：
-```bash
-uvicorn src.api.server:app --host 0.0.0.0 --port 3001 --workers 4
+cp backend/env.example backend/.env
+cp frontend/env.example frontend/.env
 ```
 
-### 数据库（PostgreSQL）
-- 首次部署需要应用迁移：
+最小必填项（建议优先确认）：
+
+| Scope | Keys |
+| --- | --- |
+| Frontend | `DATABASE_URL`, `LANGGRAPH_API_URL`, `JWT_SECRET` |
+| Backend | `PG_DSN`, `JWT_SECRET`, `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE` |
+| LLM | `LLM_PROVIDER` 对应的 API Key（`DEEPSEEK_API_KEY` 或 `OPENAI_API_KEY`） |
+
+说明：前后端 `JWT_SECRET` 需要一致，否则登录态无法互通。
+
+### 4. Apply Prisma Migrations
+
 ```bash
 cd frontend
 pnpm prisma migrate deploy
+cd ..
 ```
 
-## 常用脚本
-- 根目录：
+### 5. Run Services
+
+终端 1：启动后端
+
+```bash
+cd backend
+uv run uvicorn src.api.server:app --host 0.0.0.0 --port 3001 --reload
+```
+
+终端 2：启动前端
+
+```bash
+cd frontend
+pnpm dev
+```
+
+访问：
+
+- Frontend: `http://localhost:3000`
+- Backend Health: `http://localhost:3001/health`
+- Backend OpenAPI: `http://localhost:3001/docs`
+
+## Docker Compose
+
+项目包含 `docker-compose.yml`（使用 GHCR 预构建镜像）：
+
+```bash
+docker compose up -d
+```
+
+注意：当前 compose 文件不会自动启动 PostgreSQL / MySQL / Milvus / Neo4j；这些外部依赖需自行提供并在 `.env` 中配置连接地址。
+
+## Project Structure
+
+```text
+.
+├── backend/                 # FastAPI + LangGraph
+│   ├── src/api/server.py    # HTTP/SSE entry
+│   ├── src/core/graph.py    # Graph orchestration
+│   ├── src/tools/           # SQL/Vector/KG tools
+│   ├── env.example          # Backend env template
+│   └── pyproject.toml       # uv project metadata
+├── frontend/                # Next.js + Prisma
+│   ├── app/api/             # API routes & proxy
+│   ├── prisma/              # Prisma schema & migrations
+│   └── env.example          # Frontend env template
+├── docker-compose.yml
+└── README.md
+```
+
+## Development
+
+### Monorepo Commands
+
 ```bash
 pnpm -r build
 pnpm -r lint
 pnpm -r format
 ```
-- 前端：
+
+### Backend (uv)
+
 ```bash
-pnpm dev
-pnpm build && pnpm start
-```
-- 后端：
-```bash
+cd backend
+uv sync
 uv run uvicorn src.api.server:app --reload --port 3001
 ```
 
-## 约定与注意
-- 使用 `.env` 文件管理配置，勿将其提交至版本库。
-- 请在团队内部文档中维护配置项清单与默认值，不在公开 README 中展示。
+### Frontend
 
-## 致谢
-- 前端最初参考了 assistant-ui stockbroker 的思路，已按业务做定制化。
+```bash
+cd frontend
+pnpm dev
+pnpm build && pnpm start
+```
 
-## 许可证
+## Troubleshooting
+
+- `PG_DSN is not configured`
+  - 检查 `backend/.env` 的 `PG_DSN`。
+- `Missing required MySQL env vars`
+  - 补全 `MYSQL_HOST/USER/PASSWORD/DATABASE`。
+- `LANGGRAPH_API_URL is not configured`
+  - 补全 `frontend/.env` 的 `LANGGRAPH_API_URL`。
+- `Please run Prisma migrations first`
+  - 在 `frontend` 执行 `pnpm prisma migrate deploy`。
+
+## Documentation
+
+- 后端说明：[backend/README.md](backend/README.md)
+- 前端说明：[frontend/README.md](frontend/README.md)
+- 后端环境模板：[backend/env.example](backend/env.example)
+- 前端环境模板：[frontend/env.example](frontend/env.example)
+
+## License
+
 MIT
-
-## CI/CD 与 Docker 镜像
-
-### 构建与触发
-- 当推送到 `main` 或手动触发时，GitHub Actions 会根据路径过滤决定构建哪些镜像：
-  - 修改 `frontend/**` 或根依赖清单（`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`package.json`）时：构建并推送前端镜像与迁移镜像。
-  - 修改 `backend/**` 或根依赖清单时：构建并推送后端镜像。
-
-### 镜像产物（GHCR）
-- 前端应用：`ghcr.io/<OWNER>/smart-agent-frontend:latest` 与 `:SHA`
-- 前端迁移：`ghcr.io/<OWNER>/smart-agent-frontend-migrator:latest` 与 `:SHA`
-- 后端服务：`ghcr.io/<OWNER>/smart-agent-backend:latest` 与 `:SHA`
-
-> 注：仓库所有者 `<OWNER>` 会在 CI 中自动替换为 GitHub 组织或用户名的小写形式。
-
-### 服务器运行示例
-1) 可选：GHCR 登录（私有镜像时需要）
-```bash
-echo $GHCR_TOKEN | docker login ghcr.io -u <OWNER> --password-stdin
-```
-
-2) 运行数据库迁移（幂等）
-```bash
-docker run --rm \
-  --env-file ./frontend/.env \
-  ghcr.io/<OWNER>/smart-agent-frontend-migrator:latest
-```
-
-3) 启动前端（Next.js standalone）
-```bash
-docker run -d --name web \
-  -p 3000:3000 \
-  --env-file ./frontend/.env \
-  ghcr.io/<OWNER>/smart-agent-frontend:latest
-```
-
-### 环境变量
-- 通过 `.env` 在运行时注入容器；不要把敏感信息写入镜像。
-- 关键项：`DATABASE_URL`（Prisma 访问数据库）、`JWT_SECRET` 等。构建期所需的 `NEXT_PUBLIC_*` 按项目实际使用决定（可用运行时变量或 CI 注入）。
-
